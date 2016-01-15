@@ -2,7 +2,7 @@ module.exports = {
     entry: "./src/checkers.js",
     output: {
         path: __dirname,
-        filename: "checker.js"
+        filename: "checkers.js"
     },
     module: {
         loaders: [
