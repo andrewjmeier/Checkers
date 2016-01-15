@@ -44,44 +44,34 @@
 /* 0 */
 /***/ function(module, exports, __webpack_require__) {
 
-	// require("./board/boardConstants.js");
+	// Start creating your game here
+
+	// Our 5 Main Components
 	var TableTop = __webpack_require__(1);
+	var Checkers = __webpack_require__(29);
+	var CheckerBoard = __webpack_require__(30);
+	var CheckerView = __webpack_require__(31);
 
-	var Player = __webpack_require__(19);
-	var Card = __webpack_require__(20);
-	var Game = __webpack_require__(21);
-	// var Utils = require("./utils.js");
-	var Board = __webpack_require__(26);
-	var Turn = __webpack_require__(42);
-	var MonopolyView = __webpack_require__(43);
+	// create the players
+	var redPlayer = new TableTop.Player("Red", 1);
+	var whitePlayer = new TableTop.Player("White", 2);
+	var players = [redPlayer, whitePlayer];
 
-
-	var john = new Player("Andrew", 1);
-
-	var steve = new Player("Quinn", 2);
-
-	var sam = new Player("James", 3);
-
-	var mike = new Player("Kevin", 4);
-
-	var jimmy = new Player("KC", 5);
-
-	var players = [john, steve, sam, mike, jimmy];
-
-	var board = new Board();
-
-	console.log(players);
-
-	var monopoly = new Game(players, board, null);
-
-	var turn = new Turn(monopoly);
-
-	monopoly.turnMap = turn;
+	// create the Board, Game, and TurnMap
+	var board = new CheckerBoard();
+	var checkers = new Checkers(players, board);
+	var turnMap = new TableTop.ManualTurn(checkers);
+	checkers.setTurnMap(turnMap);
 
 
-	var view = new MonopolyView(monopoly, turn);
-
+	// create our view, and draw it
+	var view = new CheckerView(checkers, turnMap);
 	view.drawBoard();
+
+	// this initiates the TurnMap ("Gameloop") and 
+	// gets the ball rolling!
+	checkers.updateState("start");
+
 
 /***/ },
 /* 1 */
@@ -101,14 +91,22 @@
 	var core = Object.assign({
 
 	    Board: __webpack_require__(3),
-	    Game: __webpack_require__(4),
-	    EdgeTile: __webpack_require__(5),
-	    Player: __webpack_require__(11),
-	    Turn: __webpack_require__(12),
-	    Tile: __webpack_require__(6),
-	    Token: __webpack_require__(16),
-	    Utils: __webpack_require__(17),
-	    VertexTile: __webpack_require__(18)
+	    Card: __webpack_require__(9),
+	    Component: __webpack_require__(4),
+	    Constants: __webpack_require__(10),
+	    Deck: __webpack_require__(11),
+	    EdgeTile: __webpack_require__(13),
+	    Game: __webpack_require__(15),
+	    GridBoard: __webpack_require__(21),
+	    ManualTurn: __webpack_require__(16),
+	    Player: __webpack_require__(22),
+	    Tile: __webpack_require__(14),
+	    Token: __webpack_require__(23),
+	    Trade: __webpack_require__(24),
+	    Turn: __webpack_require__(17),
+	    Utils: __webpack_require__(12),
+	    VertexTile: __webpack_require__(25),
+	    View: __webpack_require__(26)
 
 	});
 
@@ -117,14 +115,29 @@
 
 /***/ },
 /* 3 */
-/***/ function(module, exports) {
+/***/ function(module, exports, __webpack_require__) {
+
+	Component = __webpack_require__(4);
+	    inherits = __webpack_require__(5).inherits;
 
 	// more of a placeholder for now -
 	// should talk when merged to properly integrate this with
 	// existing "board" and "players" implementations if any exist
 	function Board() {
 	  this.spaces = [];
+	  this.tokens = [];
 	}
+
+	Board.prototype.getSpace = function(idx) { 
+	  return this.spaces[idx];
+	};
+
+	// TODO, maybe pass the token or the token class to this method?
+	Board.prototype.buildTokenForSpace = function(player, tile, color) { 
+	  var token = new TableTop.Token(player, tile, color);
+	  tile.addOccupier(token);
+	  this.tokens.push(token);
+	};
 
 	module.exports = Board;
 
@@ -133,79 +146,30 @@
 /* 4 */
 /***/ function(module, exports) {
 
-	function Game(players, board, turnMap) {
-	  this.players = players;
-	  this.currentPlayer = 0;
-	  this.board = board;
-	  this.dice = [];
-	  this.randomizeCurrentPlayer();
-	  this.turnMap = turnMap;
+	function Component(type) {
+	    this.subscribers = [];
 	}
 
-	Game.prototype.updateState = function(click) {
-	  this.turnMap.processEvent(click, this);
+	/*
+	Standard message emitter functions for model tabletop model components
+	The message passing implementation is inspired by machina.js event emitters.
+	*/
+
+	Component.prototype.sendMessage = function(message) {
+	    for (var i = 0; i < this.subscribers.length; i++) {
+	        console.log(this.subscribers[i]);
+	        this.subscribers[i].call(this, message);       
+	    }
 	};
 
-	Game.prototype.randomizeCurrentPlayer = function() {
-	  this.currentPlayer = Math.floor(Math.random() * this.players.length);
+	Component.prototype.subscribe = function(callback) {
+	    this.subscribers.push(callback);
 	};
 
-	Game.prototype.rollDice = function(numberOfDice, sides) {
-	  if (!sides) {
-	    sides = 6;
-	  }
-	  this.dice = [];
-	  for (var i = 0; i < numberOfDice; i++) {
-	    var roll = Math.floor(Math.random() * sides) + 1;
-	    this.dice.push(roll);
-	  }
-	};
-
-	Game.prototype.isDoubles = function(dice) {
-	  return dice[0] === dice[1];
-	};
-
-	Game.prototype.getCurrentPlayer = function() {
-	  return this.players[this.currentPlayer];
-	};
-
-	Game.prototype.nextPlayer = function() {
-	  this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
-	};
-
-	module.exports = Game;
-
+	module.exports = Component; 
 
 /***/ },
 /* 5 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var Tile = __webpack_require__(6),
-	    inherits = __webpack_require__(7).inherits;
-
-	function EdgeTile(start, end) {
-	  Tile.call(this);
-	  this.startVertex = start;
-	  this.endVertex = end;
-	}
-
-	inherits(EdgeTile, Tile);
-
-	module.exports = EdgeTile;
-
-
-/***/ },
-/* 6 */
-/***/ function(module, exports) {
-
-	function Tile() {
-
-	}
-	module.exports = Tile;
-
-
-/***/ },
-/* 7 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(global, process) {// Copyright Joyent, Inc. and other Node contributors.
@@ -733,7 +697,7 @@
 	}
 	exports.isPrimitive = isPrimitive;
 
-	exports.isBuffer = __webpack_require__(9);
+	exports.isBuffer = __webpack_require__(7);
 
 	function objectToString(o) {
 	  return Object.prototype.toString.call(o);
@@ -777,7 +741,7 @@
 	 *     prototype.
 	 * @param {function} superCtor Constructor function to inherit prototype from.
 	 */
-	exports.inherits = __webpack_require__(10);
+	exports.inherits = __webpack_require__(8);
 
 	exports._extend = function(origin, add) {
 	  // Don't do anything if add isn't an object
@@ -795,10 +759,10 @@
 	  return Object.prototype.hasOwnProperty.call(obj, prop);
 	}
 
-	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }()), __webpack_require__(8)))
+	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }()), __webpack_require__(6)))
 
 /***/ },
-/* 8 */
+/* 6 */
 /***/ function(module, exports) {
 
 	// shim for using process in browser
@@ -833,7 +797,9 @@
 	        currentQueue = queue;
 	        queue = [];
 	        while (++queueIndex < len) {
-	            currentQueue[queueIndex].run();
+	            if (currentQueue) {
+	                currentQueue[queueIndex].run();
+	            }
 	        }
 	        queueIndex = -1;
 	        len = queue.length;
@@ -885,7 +851,6 @@
 	    throw new Error('process.binding is not supported');
 	};
 
-	// TODO(shtylman)
 	process.cwd = function () { return '/' };
 	process.chdir = function (dir) {
 	    throw new Error('process.chdir is not supported');
@@ -894,7 +859,7 @@
 
 
 /***/ },
-/* 9 */
+/* 7 */
 /***/ function(module, exports) {
 
 	module.exports = function isBuffer(arg) {
@@ -905,7 +870,7 @@
 	}
 
 /***/ },
-/* 10 */
+/* 8 */
 /***/ function(module, exports) {
 
 	if (typeof Object.create === 'function') {
@@ -934,32 +899,482 @@
 
 
 /***/ },
-/* 11 */
+/* 9 */
 /***/ function(module, exports) {
 
-	function Player(name, number) {
-	  this.name = name;
-	  // TODO - this should be refactored to be an array of tokens for the player
-	  this.tokens = [];
-	  this.position = 0;
-	  this.color = number;
-	}
-
-	Player.prototype.moveTo = function(position) {
-	  this.position = position;
+	/**
+	 * The Card class
+	 * @constructor
+	 * @param {string} text - The card's message
+	 * @param {function} action - An action to be taken when the card is drawn. action should take the game state as a parameter
+	*/
+	function Card(text, action) {
+	  this.text = text;
+	  this.action = action;
 	};
 
-	module.exports = Player;
+	module.exports = Card;
+
+/***/ },
+/* 10 */
+/***/ function(module, exports) {
+
+	// constants.js
+
+	var ttConstants = new Object();
+
+	// CANVAS
+	// Constants defining the canvas properties
+	ttConstants.canvasWidth = 1200;
+	ttConstants.canvasHeight = 1500;
+
+	ttConstants.leftBuffer = 50;
+	ttConstants.upperBuffer = 50;
+
+	// BOARD
+	// Constants for defining the board on top of the canvas
+	ttConstants.boardWidth = 1100;
+	ttConstants.boardHeight = 1100;
+
+	ttConstants.boardStartX = ttConstants.leftBuffer;
+	ttConstants.boardStartY = ttConstants.upperBuffer;
+
+	// COLORS
+	// Constants defining basic colors.
+	ttConstants.blackColor = 0x000000;
+	ttConstants.whiteColor = 0xFFFFFF;
+	ttConstants.redColor = 0xFF0000;
+	ttConstants.blueColor = 0x0000FF;
+	ttConstants.greenColor = 0x008000;
+
+	// MOVE TYPES
+	// Constants defining how moving occurs
+
+	// user selects token, then new position
+	ttConstants.moveTypeManual = 1;
+
+	// user rolls dice, player is moved 
+	ttConstants.moveTypeDiceRoll = 2;
+
+	// MOVE EVALUATION TYPES
+
+	// space.performLandingAction() is called 
+	ttConstants.moveEvaluationTypeLandingAction = 1;
+
+	// game.executeMove() is called
+	// after game.isValidMove() verfies move is legal
+	ttConstants.moveEvaluationTypeGameEvaluator = 2;
+
+
+	module.exports = ttConstants;
+
+
+/***/ },
+/* 11 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var Utils = __webpack_require__(12);
+	/**
+	 * The Deck class
+	 * Should probably be subclassed to create the cards for the deck in the constructor
+	 * @constructor
+	*/
+	function Deck() {
+	  this.cards = [];
+	  this.currentPosition = 0;
+	};
+
+	/**
+	 * Shuffle the deck
+	*/
+	Deck.prototype.shuffle = function() {
+	  Utils.shuffle(this.cards);
+	};
+
+	// draw card currently assumes that the card goes back on the bottom of the deck
+	// doesn't quite work for get out of jail, but will for everything else.
+	// In the future we could build two types of decks or two different draw methods
+	/**
+	 * @param {Boolean} isReplaced - Whether or not the card should be replaced at the bottom of the deck
+	 * @returns {Card} The card drawn from the deck
+	*/
+	Deck.prototype.drawCard = function(isReplaced) {
+	  var card = this.cards[this.currentPosition];
+	  if (isReplaced) {
+	    this.currentPosition++;
+
+	    // wrap index of the card around
+	    this.currentPosition = this.currentPosition % this.cards.length;
+	  } else {
+	    this.cards.splice(this.currentPosition, 1);
+	  }
+	  
+	  return card;
+	};
+
+	module.exports = Deck;
 
 /***/ },
 /* 12 */
+/***/ function(module, exports) {
+
+	var Utils = {
+	  // http://stackoverflow.com/questions/6274339/how-can-i-shuffle-an-array-in-javascript
+	  shuffle: function(o) {
+	    for(var j, x, i = o.length; i; j = Math.floor(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x);
+	    return o;
+	  },
+	};
+
+	module.exports = Utils;
+
+/***/ },
+/* 13 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var machina = __webpack_require__(13);
+	var Tile = __webpack_require__(14),
+	    inherits = __webpack_require__(5).inherits;
+
+	function EdgeTile(start, end) {
+	  Tile.call(this);
+	  this.startVertex = start;
+	  this.endVertex = end;
+	}
+
+	inherits(EdgeTile, Tile);
+
+	module.exports = EdgeTile;
+
+/***/ },
+/* 14 */
+/***/ function(module, exports, __webpack_require__) {
+
+	Component = __webpack_require__(4);
+	    inherits = __webpack_require__(5).inherits;
+
+	function Tile(opts) {
+	  this.name = opts.name;
+	  this.color = opts.color;
+	  this.occupier = opts.occupier; // todo: make this an array of tokens
+	}
+
+	Tile.prototype.clearOccupiers = function() { 
+	  this.occupier = null;
+	};
+
+	Tile.prototype.addOccupier = function(occupier) { 
+	  this.occupier = occupier;
+	};
+
+	Tile.prototype.removeOccupier = function(occupier) { 
+	  this.occupier = null;
+	};
+
+	module.exports = Tile;
+
+
+/***/ },
+/* 15 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var c = __webpack_require__(10);
+	var ManualTurn = __webpack_require__(16);
+	var Component = __webpack_require__(4);
+	var inherits = __webpack_require__(5).inherits;
+
+	/**
+	 * The Game class
+	 * @constructor
+	 * @param {Player|Array} players - A list of players
+	 * @param {Board} board - The game board
+	*/
+	function Game(players, board) {
+	  Component.call(this);
+	  this.players = players,
+	  this.board = board;
+	  this.dice = [];
+	  this.randomizeCurrentPlayer();
+	  this.turnMap = null;
+	  this.moveType = c.moveTypeDice; // manual movement or dicerolls
+	  this.proposedMove = {}; // for c.moveTypeManual
+	  this.moveEvaluationType = c.moveEvaluationTypeLandingAction;
+	};
+
+	inherits(Game, Component);
+
+	/**
+	 * Method to set turnMap of the game once it is created
+	 * This is required!
+	 * @param {Turn} turnMap - A turn object to be used by the game
+	*/
+	Game.prototype.setTurn = function(turnMap) {
+	  this.turnMap = turnMap;
+	};
+
+	/**
+	 * Method to call from the view to update the game state
+	 * @param {string} message - A string saying which state to transition to
+	*/
+	Game.prototype.updateState = function(message) {
+	  this.turnMap.updateState(message, this);
+	};
+
+	Game.prototype.setTurnMap = function(turnMap) { 
+	  this.turnMap = turnMap;
+	};
+
+	/**
+	 * Set the move type for this game
+	 * @param {string} moveType - The move type. See ttConstants
+	*/
+	Game.prototype.setMoveType = function(moveType) { 
+	  this.moveType = moveType;
+	  if (moveType == c.moveTypeManual) { 
+	    this.proposedMove = {};
+	  } 
+	};
+
+	/**
+	 * Callback method from the view when a token is clicked
+	 * To be overridden by the subclass
+	 * @abstract
+	 * @parram {Token} token - The token object that was clicked
+	*/
+	Game.prototype.tokenClicked = function(token) {
+	  throw new Error('must be implemented by subclass!');
+	};
+
+	/**
+	 * Callback method from the view when a space is clicked
+	 * To be overridden by the subclass
+	 * @abstract
+	 * @param {Space} space - the space object that was clicked in the view
+	*/
+	Game.prototype.spaceClicked = function(space) {
+	  throw new Error('must be implemented by subclass!');
+	};
+
+	/**
+	 * Check the Game State to see if a player has won the game
+	 * @abstract
+	 * @return {boolean}
+	*/
+	Game.prototype.isGameOver = function() {
+	  // TODO - check this method every transition in the state machine
+	  throw new Error('must be implemented by subclass!');
+	};
+
+	/**
+	 * Set the current player to a random player
+	 * Used to decide who goes first at the beginning of the game
+	*/
+	Game.prototype.randomizeCurrentPlayer = function() {
+	  this.currentPlayer = Math.floor(Math.random() * this.players.length);
+	};
+
+	/**
+	 * Roll the dice
+	 * Dice are represented as an array of ints stored in the state
+	 * @param {int} numberOfDice - The number of dice to roll
+	 * @param {int} sides - How many sides should be on the dice (defaults to 6)
+	*/
+	Game.prototype.rollDice = function(numberOfDice, sides) {
+	  if (!sides) {
+	    sides = 6;
+	  }
+	  this.dice = [];
+	  var message = "You rolled a ";
+	  for (var i = 0; i < numberOfDice; i++) {
+	    var roll = Math.floor(Math.random() * sides) + 1;
+	    this.dice.push(roll);
+	    message = message.concat(roll + ", ");
+	  }
+
+	  this.sendMessage(message);
+	};
+
+	/**
+	 * Checks to see if the first two dice are the same value
+	 * @returns {Boolean}
+	*/
+	Game.prototype.isDoubles = function(dice) {
+	  return dice.length > 1 && dice[0] === dice[1];
+	};
+
+	/**
+	 * Returns the current player
+	 * @returns {Player}
+	*/
+	Game.prototype.getCurrentPlayer = function() {
+	  return this.players[this.currentPlayer];
+	};
+
+	/**
+	 * Sets the last moved token for later reference
+	*/
+	Game.prototype.submitMove = function(token) { 
+	  this.lastMovedToken = token;
+	};
+
+	Game.prototype.nextPlayer = function() { 
+	  this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
+	};
+
+	Game.prototype.setProposedMoveDestination = function(space) { 
+	  this.proposedMove.destination = space;
+	};
+
+	Game.prototype.setProposedMoveToken = function(token) { 
+	  this.proposedMove.token = token;
+	};
+
+	Game.prototype.hasValidMove = function() { 
+	  
+	  if (this.moveType != c.moveTypeManual) 
+	    return false;
+	  if (!this.proposedMove.token || !this.proposedMove.destination)
+	    return false;
+
+	  return this.isValidMove(this.proposedMove.token, 
+	                          this.proposedMove.token.space, 
+	                          this.proposedMove.destination);
+	}; 
+
+	Game.prototype.isValidMove = function(token, oldSpace, newSpace) { 
+	  console.log("Warning: you should overwrite isValidMove(token, oldSpace, newSpace)");
+	  return true;
+	};
+
+	Game.prototype.playerDidWin = function(player) {
+	  console.log("Warning: you should overwrite playerDidWin(player)");
+	  return false;
+	};
+
+	Game.prototype.moveTokenToSpace = function(token, destinationTile) { 
+	  token.space.removeOccupier(token);
+	  token.setSpace(destinationTile);
+	  destinationTile.addOccupier(token);
+	};
+
+	Game.prototype.tokenClicked = function(token) { 
+	  if (this.moveType == c.moveTypeManual &&
+	      this.turnMap.getCurrentState() == "waitingForMove") { 
+	    this.setProposedMoveToken(token);
+	  }
+	};
+
+
+	Game.prototype.spaceClicked = function(space) { 
+	  /* make sure we're in the right state, 
+	   a token has been pressed, 
+	   and we're not a tile with a token on it (if we have > 0
+	   children, then this click was meant for a token... */
+	  if (this.moveType == c.moveTypeManual && 
+	      this.turnMap.getCurrentState() == "waitingForMove" && 
+	      this.proposedMove.token && 
+	      this.proposedMove.token.space != space) { 
+
+	    this.setProposedMoveDestination(space);
+	    this.turnMap.updateState("makeMove");
+	  } 
+	};
+
+
+	module.exports = Game;
+
+
+/***/ },
+/* 16 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var Turn = __webpack_require__(17);
+	var inherits = __webpack_require__(5).inherits;
+
+	function ManualTurn(game) { 
+	  
+	  this.game = game;
+	  this.turnMap = new Turn({ 
+	    initialize: function( options ) {},
+	    
+	    game : game, 
+
+	    initialState: "uninitialized",
+	    
+	    namespace: "test",
+
+	    states: { 
+	      
+	      // 1
+	      uninitialized: { 
+	        start : function() { 
+	          this.transition("waitingForMove");
+	        } 
+	      },
+
+	      // 2 
+	      waitingForMove: { 
+	        _onEnter: function() { 
+	          console.log(this.game.getCurrentPlayer().name + ": Make your move.");
+	        },
+	        
+	        makeMove : function() { 
+	          if (game.hasValidMove()) { 
+	            game.executeMove();
+	            this.transition("postTurn");
+	          } else { 
+	            console.log("Invalid move. Try again.");
+	          } 
+	        } 
+	      },
+
+	      // 3
+	      postTurn: { 
+	        _onEnter : function() { 
+	          if (this.game.playerDidWin(game.getCurrentPlayer())) { 
+	            this.transition("gameOver");
+	          } else { 
+	            this.game.nextPlayer();
+	            this.transition("waitingForMove");
+	          }
+	        } 
+	      },
+
+	      // 4
+	      gameOver : { 
+	        _onEnter : function() { 
+	          console.log(this.game.getCurrentPlayer().name + " has won.");
+	        } 
+	      } 
+	      
+	    } 
+	    
+	  });
+	  
+	} 
+
+	ManualTurn.prototype.updateState = function(command) {
+	    this.turnMap.handle(command);
+	};
+
+	ManualTurn.prototype.getCurrentState = function() {
+	    return this.turnMap.compositeState();
+	};
+
+
+	module.exports = ManualTurn;
+
+
+/***/ },
+/* 17 */
+/***/ function(module, exports, __webpack_require__) {
+
+	Component = __webpack_require__(4);
+	    inherits = __webpack_require__(5).inherits;
+
+	var machina = __webpack_require__(18);
 
 	var Turn = machina.Fsm.extend({
 	        initialize: function( ) {
-	            // console.log('tests');
 	        },
 
 	        initialState: 'uninitialized',
@@ -969,7 +1384,6 @@
 	        states: {
 	            setup: {
 	                '_onEnter': function() {
-	                    // console.log('hello');
 	                }
 	            }
 	        }
@@ -979,7 +1393,7 @@
 
 
 /***/ },
-/* 13 */
+/* 18 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/**
@@ -994,7 +1408,7 @@
 		/* istanbul ignore if  */
 		if ( true ) {
 			// AMD. Register as an anonymous module.
-			!(__WEBPACK_AMD_DEFINE_ARRAY__ = [ __webpack_require__(14) ], __WEBPACK_AMD_DEFINE_RESULT__ = function( _ ) {
+			!(__WEBPACK_AMD_DEFINE_ARRAY__ = [ __webpack_require__(19) ], __WEBPACK_AMD_DEFINE_RESULT__ = function( _ ) {
 				return factory( _, root );
 			}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
 		/* istanbul ignore else  */
@@ -1581,7 +1995,7 @@
 
 
 /***/ },
-/* 14 */
+/* 19 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var __WEBPACK_AMD_DEFINE_RESULT__;/* WEBPACK VAR INJECTION */(function(module, global) {/**
@@ -13936,10 +14350,10 @@
 	  }
 	}.call(this));
 
-	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(15)(module), (function() { return this; }())))
+	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(20)(module), (function() { return this; }())))
 
 /***/ },
-/* 15 */
+/* 20 */
 /***/ function(module, exports) {
 
 	module.exports = function(module) {
@@ -13955,35 +14369,169 @@
 
 
 /***/ },
-/* 16 */
+/* 21 */
+/***/ function(module, exports, __webpack_require__) {
+
+	// gridBoard.j
+	var inherits = __webpack_require__(5).inherits;
+	var Board = __webpack_require__(3);
+
+	function GridBoard(width, height) { 
+	  Board.call(this);
+	  for (var i = 0; i < height; i++) { 
+	    this.spaces[i] = Array(this.width);
+	  }
+	  this.width = width;
+	  this.height = height;
+	};
+
+	inherits(GridBoard, Board);
+
+	GridBoard.prototype.getSpace = function(x, y) { 
+	  return this.spaces[x][y];
+	};
+
+	GridBoard.prototype.getSpacePosition = function(space) { 
+
+	  for (var x = 0; x < this.width; x++) {
+	    for (var y = 0; y < this.height; y++) { 
+	      if (this.spaces[x][y] == space) { 
+	        return {x: x, y: y};
+	      } 
+	    } 
+	  }
+	  
+	  return null;
+	};
+
+	module.exports = GridBoard;
+
+
+/***/ },
+/* 22 */
+/***/ function(module, exports, __webpack_require__) {
+
+	Component = __webpack_require__(4);
+	    inherits = __webpack_require__(5).inherits;
+
+	/**
+	 * A Player class
+	 * @constructor
+	 * @param {string} name - The player's name.
+	 * @param {int} number - The player's number.
+	*/
+	function Player(name, number) {
+	  this.name = name;
+	  // TODO - this should be refactored to be an array of tokens for the player
+	  this.tokens = [];
+	  this.position = 0;
+	  this.color = number;
+	};
+
+	/**
+	 * Represents a Player.
+	 * @param {int} position - The new position (index on the board) to move the player to
+	*/
+	Player.prototype.moveTo = function(position) {
+	  this.position = position;
+	};
+
+	/**
+	 * Add items to a player
+	 * This is used by the trade (but could be used elsewhere as well)
+	 * @abstract
+	 * @param {Dictionary} items - a dictionary of items to be added to the player
+	*/
+	Player.prototype.addItems = function(items) {
+	  throw new Error('must be implemented by subclass!');
+	};
+
+	module.exports = Player;
+
+
+/***/ },
+/* 23 */
 /***/ function(module, exports) {
 
-	function Token(player) {
-	  this.player = player;
-	}
+	/**
+	 * A Token class
+	 * @constructor
+	 * @param {string} owner - The player who owns this token.
+	 * @param {string} [color=COLOR_BLACK] - Token color. See constants.js.
+	*/
+	function Token(owner, space, color) {
+	  this.owner = owner;
+	  this.space = space;
+	  this.color = color;
+	  this.isDead = false;
+	};
+
+
+	// sets variables for token, calls space functions
+	Token.prototype.setSpace = function(space) { 
+	  this.space = space;
+	};
+
+	Token.prototype.destroy = function() { 
+
+	  for (var i = 0; i < this.owner.tokens.length; i++) { 
+	    if (this.owner.tokens[i] == this) 
+	      this.owner.tokens.splice(i, 1);
+	  } 
+	  
+	  this.space.removeOccupier(this);
+	  this.owner = null;
+	  this.space = null;
+	  this.isDead = true;
+
+	};
 
 	module.exports = Token;
 
+
 /***/ },
-/* 17 */
+/* 24 */
 /***/ function(module, exports) {
 
-	// var Utils = {
-	//   // http://stackoverflow.com/questions/6274339/how-can-i-shuffle-an-array-in-javascript
-	//   shuffle: function(o) {
-	//     for(var j, x, i = o.length; i; j = Math.floor(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x);
-	//     return o;
-	//   },
-	// };
+	/**
+	 * A Trade class
+	 * @constructor
+	 * @param {Player} proposingPlayer - The player starting the trade
+	 * @param {Player} answeringPlayer - The player responding to the trade
+	 * @param {Dictionary} proposingPlayerItems - The proposing player's items in the trade
+	 * @param {Dictionary} answeringPlayerItems - The answering player's items in the trade
+	*/
+	function Trade(proposingPlayer, answeringPlayer, proposingPlayerItems, answeringPlayerItems) {
+	  this.proposingPlayer = proposingPlayer;
+	  this.answeringPlayer = answeringPlayer;
+	  this.proposingPlayerItems = proposingPlayerItems;
+	  this.answeringPlayerItems = answeringPlayerItems;
+	};
 
-	// module.exports = Utils;
+	/**
+	 * Execute the trade and swap the players' items
+	*/
+	Trade.prototype.completeTrade = function() {
+	  this.proposingPlayer.addItems(this.answeringPlayerItems);
+	  this.answeringPlayer.addItems(this.proposingPlayerItems);
+	};
+
+	/**
+	 * Add the objects back to their respective players 
+	*/
+	Trade.prototype.cancelTrade = function() {
+	  this.proposingPlayer.addItems(this.proposingPlayerItems);
+	  this.answeringPlayer.addItems(this.answeringPlayerItems);
+	};
+
+	module.exports = Trade
 
 /***/ },
-/* 18 */
+/* 25 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var Tile = __webpack_require__(6),
-	    inherits = __webpack_require__(7).inherits;
+	var Tile = __webpack_require__(14),
+	    inherits = __webpack_require__(5).inherits;
 
 	function VertexTile() {
 	  Tile.call(this);
@@ -14000,2291 +14548,241 @@
 
 
 /***/ },
-/* 19 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var inherits = __webpack_require__(7).inherits;
-	var TableTop = __webpack_require__(1);
-	console.log(TableTop);
-
-	function MonopolyPlayer(name, number) {
-	  TableTop.Player.call(this, name, number);
-	  this.money = 1500;
-	  this.properties = [];
-	  this.getOutOfJailFreeCards = 0;
-	  this.inJail = false;
-	  this.turnsInJail = 0;
-	};
-
-	inherits(MonopolyPlayer, TableTop.Player);
-
-	MonopolyPlayer.prototype.sendToJail = function() {
-	  this.position = 10;
-	  this.inJail = true;
-	};
-
-	MonopolyPlayer.prototype.payBail = function() {
-	  this.releaseFromJail();
-	  this.money -= 50;
-	};
-
-	MonopolyPlayer.prototype.getOutOfJailFree = function() {
-	  this.releaseFromJail();
-	  this.getOutOfJailFreeCards -= 1;
-	};
-
-	MonopolyPlayer.prototype.releaseFromJail = function() {
-	  this.inJail = false;
-	  this.turnsInJail = 0;
-	};
-
-	MonopolyPlayer.prototype.payPlayers = function(amount, players) {
-	  for (var index in players) {
-	    if (players[index] !== this) {
-	      this.payPlayer(amount, players[index]);
-	    }
-	  }
-	};
-
-	MonopolyPlayer.prototype.collectFromPlayers = function(amount, players) {
-	  for (var index in players) {
-	    if (players[index] !== this) {
-	      players[index].payPlayer(amount, this);
-	    }
-	  }
-	};
-
-	MonopolyPlayer.prototype.payPlayer = function(amount, player) {
-	  player.makeDeposit(amount);
-	  this.makePayment(amount);
-	};
-
-	MonopolyPlayer.prototype.makePayment = function(amount) {
-	  this.money -= amount;
-	};
-
-	MonopolyPlayer.prototype.makeDeposit = function(amount) {
-	  this.money += amount;
-	};
-
-	MonopolyPlayer.prototype.moveTo = function(position) {
-	  var previousPosition = this.position;
-
-	  // passed go collecting $200
-	  if (previousPosition > position) {
-	    this.money += 200;
-	  }
-
-	  MonopolyPlayer.super_.prototype.moveTo.call(this, position);
-	};
-
-	MonopolyPlayer.prototype.move = function(spacesToMove) {
-	  var nextPosition = this.position + spacesToMove;
-
-	  // passed go
-	  if (nextPosition >= 40) {
-	    nextPosition = nextPosition % 40;
-	    this.money += 200;
-	  }
-	  this.position = nextPosition;
-	};
-
-
-	MonopolyPlayer.prototype.canBuy = function(property) {
-	  return (this.money > property.cost) && !property.owner;
-	};
-
-	MonopolyPlayer.prototype.owesRent = function(property) {
-	  return property.owner && !this.owns(property);
-	};
-
-	MonopolyPlayer.prototype.owns = function(property) {
-	  return property.owner === this;
-	};
-
-	MonopolyPlayer.prototype.buy = function(property) {
-	  this.makePayment(property.cost);
-	  this.properties.push(property);
-	  property.owner = this;
-	};
-
-	MonopolyPlayer.prototype.assets = function() {
-
-	  var assets = this.money;
-	  for (var prop_idx in this.properties) {
-	    var property = this.properties[prop_idx];
-	    assets += property.cost;
-	    if (property.numHouses)
-	      assets += property.numHouses*property.houseCost;
-	  }
-
-	  return assets;
-	};
-
-
-
-	module.exports = MonopolyPlayer;
-
-
-/***/ },
-/* 20 */
-/***/ function(module, exports) {
-
-	function Card(text, action) {
-	  this.text = text;
-	  this.action = action;
-	};
-
-	module.exports = Card;
-
-/***/ },
-/* 21 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var ChanceDeck = __webpack_require__(22);
-	var CommunityChestDeck = __webpack_require__(25);
-	var inherits = __webpack_require__(7).inherits;
-	var TableTop = __webpack_require__(1);
-
-
-	function MonopolyGame(players, board, turnMap) {
-	  TableTop.Game.call(this, players, board, turnMap);
-	  this.chanceCards = new ChanceDeck();
-	  this.communityChestCards = new CommunityChestDeck();
-	  this.shuffleCards();
-	  this.doublesCount = 0;
-	  this.state = WAITING_FOR_ROLL;
-	  this.message = "";
-	  this.activeCard = null;
-	};
-
-	inherits(MonopolyGame, TableTop.Game);
-
-
-	MonopolyGame.prototype.shuffleCards = function() {
-	  this.chanceCards.shuffle();
-	  this.communityChestCards.shuffle();
-	};
-
-	MonopolyGame.prototype.drawChanceCard = function() {
-	  var card = this.chanceCards.drawCard();
-	  this.activeCard = card;
-	  console.log("chance card drawn ", card);
-	  var actions = card.action(this);
-	  return [actions[0], actions[1]];
-	};
-
-	MonopolyGame.prototype.drawCommunityChestCard = function() {
-	  var card = this.communityChestCards.drawCard();
-	  this.activeCard = card;
-	  console.log("community chest card drawn ", card);
-	  var actions = card.action(this);
-	  return [actions[0], actions[1]];
-	};
-
-	MonopolyGame.prototype.rollAndMovePlayer = function() {
-	  this.rollDice(2);
-	  return this.movePlayer();
-	};
-
-	MonopolyGame.prototype.movePlayer = function() {
-
-	  // if we're not in jail, just move
-	  if (!this.getCurrentPlayer().inJail)
-	    return this.move();
-
-	  // otherwise increment turnsInJail, then handle
-	  // various circumstances surrounding getting out of
-	  // jail or staying in
-	  this.getCurrentPlayer().turnsInJail += 1;
-	  if (this.isDoubles(this.dice)) {
-	    this.getCurrentPlayer().releaseFromJail();
-	  } else if (this.getCurrentPlayer().turnsInJail === 3) {
-	    this.getCurrentPlayer().payBail();
-	  } else {
-	    return [this.getCurrentPlayer().name + " is serving a turn in jail. ", POST_TURN];
-	  }
-
-	  return this.move();
-	};
-
-	MonopolyGame.prototype.move = function() {
-	  var spacesToMove = 0;
-	  for (var index in this.dice) {
-	    spacesToMove += this.dice[index];
-	  }
-	  this.getCurrentPlayer().move(spacesToMove);
-	  var player = this.getCurrentPlayer();
-	  var actions = this.board.spaces[player.position].performLandingAction(this);
-	  actions[0] = ("You rolled a " + spacesToMove + ". ").concat(actions[0]);
-	  return actions;
-	};
-
-	MonopolyGame.prototype.nextPlayer = function() {
-	  if (!this.isDoubles(this.dice)) {
-	    this.doublesCount = 0;
-	    this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
-	  } else {
-	    this.doublesCount += 1;
-	    if (this.doublesCount === 3) {
-	      this.doublesCount = 0;
-	      this.getCurrentPlayer().inJail = true;
-	      this.getCurrentPlayer().position = 10;
-	      this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
-	    }
-	  }
-	};
-
-
-	MonopolyGame.prototype.clearActiveCard = function() {
-	  this.activeCard = null;
-	};
-
-	module.exports = MonopolyGame;
-
-
-/***/ },
-/* 22 */
-/***/ function(module, exports, __webpack_require__) {
-
-	inherits = __webpack_require__(7).inherits;
-	Deck = __webpack_require__(23);
-	var Card = __webpack_require__(20);
-
-
-	function ChanceDeck() {
-	  Deck.call(this);
-	  this.cards = buildChanceDeck();
-	};
-
-	inherits(ChanceDeck, Deck);
-
-	var buildChanceDeck = function() {
-
-	  var chance1 = new Card("Advance to Go (Collect $200)", function(game) {
-	    game.getCurrentPlayer().moveTo(0);
-	    return game.board.spaces[0].performLandingAction(game);
-	  });
-
-	  var chance2 = new Card("Advance to Illinois Ave.", function(game) {
-	    game.getCurrentPlayer().moveTo(24);
-	    return game.board.spaces[24].performLandingAction(game);
-	  });
-
-	  var chance3 = new Card("Advance token to the nearest Utility. If unowned, you may buy it from the Bank. If owned, throw dice and pay owner a total of ten times the amount thrown.", function(game) {
-	    var player = game.getCurrentPlayer();
-	    if (player.position > 11 && player.position < 28) {
-	      // move to water works
-	      player.moveTo(28);
-	      return game.board.spaces[28].performLandingAction(game);
-	    } else {
-	      // move to electric company
-	      player.moveTo(12);
-	      return game.board.spaces[12].performLandingAction(game);
-	    }
-
-	    // TODO - pay owner 10x dice
-	  });
-
-	  var chance4 = new Card("Advance token to the nearest Railroad and pay owner twice the rental to which he/she is otherwise entitled. If Railroad is unowned, you may buy it from the Bank.", function(game) {
-	    var player = game.getCurrentPlayer();
-	    var space;
-	    if (player.position >= 35 || player.position < 5) {
-	      // Reading RR
-	      space = 5;
-	    } else if (player.position >= 25) {
-	      // Short Line
-	      space = 35;
-	    } else if (player.position >= 15) {
-	      // B & O
-	      space = 25;
-	    } else {
-	      // Penn RR
-	      space = 15;
-	    }
-
-	    player.moveTo(space);
-	    return game.board.spaces[space].performLandingAction(game);
-	    // TODO - pay owner twice rent
-	  });
-
-	  var chance6 = new Card("Advance to St. Charles Place - if you pass Go, collect $200", function(game) {
-	    game.getCurrentPlayer().moveTo(11);
-	    return game.board.spaces[11].performLandingAction(game);
-	  });
-
-	  var chance7 = new Card("Bank pays you dividend of $50", function(game) {
-	    game.getCurrentPlayer().makeDeposit(50);
-	    return ["", POST_TURN];
-	  });
-
-	  var chance8 = new Card("Get out of Jail free - this card may be kept until needed, or traded/sold", function(game) {
-	    game.getCurrentPlayer().getOutOfJailFreeCards += 1;
-	    return ["", POST_TURN];
-	  });
-
-	  var chance9 = new Card("Go back 3 spaces", function(game) {
-	    var player = game.getCurrentPlayer();
-	    if (player.position < 3) {
-	      player.move(40 - 3);
-	      return game.board.spaces[player.position].performLandingAction(game);
-	    } else {
-	      player.move(-3);
-	      return game.board.spaces[player.position].performLandingAction(game);   
-	    }
-	  });
-
-	  var chance10 = new Card("Go directly to Jail - do not pass Go, do not collect $200", function(game) {
-	    game.getCurrentPlayer().sendToJail();
-	    return game.board.spaces[game.getCurrentPlayer().position].performLandingAction(game);   
-	  });
-
-	  var chance11 = new Card("Make general repairs on all your property - for each house pay $25 - for each hotel $100", function(game) {
-	    var player = game.getCurrentPlayer();
-	    var housesCount = 0;
-	    var hotelsCount = 0;
-	    for (var prop in player.properties) {
-	      if (player.properties.hasOwnProperty(prop)) {
-	        if (player.properties[prop].hasHotel()) {
-	          hotelsCount += 1;
-	        } else {
-	          housesCount += player.properties[prop].numHouses;
-	        }
-	      }
-	    }
-	    var total = 25 * housesCount + 100 * hotelsCount;
-
-	    // TODO - update this for correct value
-	    player.makePayment(total);
-	    return ["", POST_TURN];
-	  });
-
-	  var chance12 = new Card("Pay poor tax of $15", function(game) {
-	    game.getCurrentPlayer().makePayment(15);
-	    return ["", POST_TURN];
-	  });
-
-	  var chance13 = new Card("Take a trip to Reading Railroad - if you pass Go collect $200", function(game) {
-	    game.getCurrentPlayer().moveTo(5);
-	    return game.board.spaces[5].performLandingAction(game);   
-	  });
-
-	  var chance14 = new Card("Take a walk on the Boardwalk - advance token to Boardwalk", function(game) {
-	    game.getCurrentPlayer().moveTo(39);
-	    return game.board.spaces[39].performLandingAction(game);   
-	  });
-
-	  var chance15 = new Card("You have been elected chairman of the board - pay each player $50", function(game) {
-	    game.getCurrentPlayer().payPlayers(50, game.players);
-	    return ["", POST_TURN];
-	  });
-
-	  var chance16 = new Card("Your building loan matures - collect $150", function(game) {
-	    game.getCurrentPlayer().makeDeposit(150);
-	    return ["", POST_TURN];
-	  });
-
-	  var chance17 = new Card("You have won a crossword competition - collection $100", function(game) {
-	    game.getCurrentPlayer().makeDeposit(100);
-	    return ["", POST_TURN];
-	  });
-
-	  return [chance1, chance2, chance3, chance4, chance4, chance6, chance7, chance8, chance9, chance10, chance11, chance12, chance13, chance14, chance15, chance16, chance17];
-	};
-
-	module.exports = ChanceDeck;
-
-
-/***/ },
-/* 23 */
-/***/ function(module, exports, __webpack_require__) {
-
-	Utils = __webpack_require__(24);
-
-	function Deck() {
-	  this.cards = [];
-	  this.currentPosition = 0;
-	};
-
-	Deck.prototype.shuffle = function() {
-	  Utils.shuffle(this.cards);
-	};
-
-	// draw card currently assumes that the card goes back on the bottom of the deck
-	// doesn't quite work for get out of jail, but will for everything else.
-	// In the future we could build two types of decks or two different draw methods
-	Deck.prototype.drawCard = function() {
-	  var card = this.cards[this.currentPosition];
-	  this.currentPosition++;
-
-	  // wrap index of the card around
-	  this.currentPosition = this.currentPosition % this.cards.length;
-	  return card;
-	};
-
-	module.exports = Deck;
-
-
-/***/ },
-/* 24 */
-/***/ function(module, exports) {
-
-	var Utils = {
-	  // http://stackoverflow.com/questions/6274339/how-can-i-shuffle-an-array-in-javascript
-	  shuffle: function(o) {
-	    for(var j, x, i = o.length; i; j = Math.floor(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x);
-	    return o;
-	  },
-	};
-
-	module.exports = Utils;
-
-/***/ },
-/* 25 */
-/***/ function(module, exports, __webpack_require__) {
-
-	inherits = __webpack_require__(7).inherits;
-	Deck = __webpack_require__(23);
-	var Card = __webpack_require__(20);
-
-
-	function CommunityChestDeck() {
-	  Deck.call(this);
-	  this.cards = buildCommunityChestDeck();
-	};
-
-	inherits(CommunityChestDeck, Deck);
-
-	var buildCommunityChestDeck = function() {
-
-	  var card1 = new Card("Advance to Go (Collect $200)", function(game) {
-	    game.getCurrentPlayer().moveTo(0);
-	    return game.board.spaces[0].performLandingAction(game);
-	  });
-
-	  var card2 = new Card("Bank error in your favor - collect $75", function(game) {
-	    game.getCurrentPlayer().makeDeposit(75);
-	    return ["", POST_TURN];
-	  });
-
-	  var card3 = new Card("Doctor's fees - Pay $50", function(game) {
-	    game.getCurrentPlayer().makePayment(50);
-	    return ["", POST_TURN];
-	  });
-
-	  var card4 = new Card("Get out of jail free - this card may be kept until needed, or sold", function(game) {
-	    game.getCurrentPlayer().getOutOfJailFreeCards += 1;
-	    return ["", POST_TURN];
-	  });
-
-	  var card5 = new Card("Go to jail - go directly to jail - Do not pass Go, do not collect $200", function(game) {
-	    game.getCurrentPlayer().sendToJail();
-	    return ["", POST_TURN];
-	  });
-
-	  var card6 = new Card("It is your birthday Collect $10 from each player", function(game) {
-	    game.getCurrentPlayer().collectFromPlayers(10, game.players);
-	    return ["", POST_TURN];
-	  });
-
-	  var card7 = new Card("Grand Opera Night - collect $50 from every player for opening night seats", function(game) {
-	    game.getCurrentPlayer().collectFromPlayers(50, game.players);
-	    return ["", POST_TURN];
-	  });
-
-	  var card8 = new Card("Income Tax refund - collect $20", function(game) {
-	    game.getCurrentPlayer().makeDeposit(20);
-	    return ["", POST_TURN];
-	  });
-
-	  var card9 = new Card("Life Insurance Matures - collect $100", function(game) {
-	    game.getCurrentPlayer().makeDeposit(100);
-	    return ["", POST_TURN];
-	  });
-
-	  var card10 = new Card("Pay Hospital Fees of $100", function(game) {
-	    game.getCurrentPlayer().makePayment(100);
-	    return ["", POST_TURN];
-	  });
-
-	  var card11 = new Card("Pay School Fees of $50", function(game) {
-	    game.getCurrentPlayer().makePayment(50);
-	    return ["", POST_TURN];
-	  });
-
-	  var card12 = new Card("Receive $25 Consultancy Fee", function(game) {
-	    game.getCurrentPlayer().makeDeposit(25);
-	    return ["", POST_TURN];
-	  });
-
-	  var card13 = new Card("You are assessed for street repairs - $40 per house, $115 per hotel", function(game) {
-	    var player = game.getCurrentPlayer();
-	    var housesCount = 0;
-	    var hotelsCount = 0;
-	    for (var prop in player.properties) {
-	      if (player.properties.hasOwnProperty(prop)) {
-	        if (player.properties[prop].hasHotel()) {
-	          hotelsCount += 1;
-	        } else {
-	          housesCount += player.properties[prop].numHouses;
-	        }
-	      }
-	    }
-	    var total = 40 * housesCount + 115 * hotelsCount;
-
-	    // TODO update this for correct value
-	    player.makePayment(total);
-	    return ["", POST_TURN];
-	  });
-
-	  var card14 = new Card("You have won second prize in a beauty contest - collect $10", function(game) {
-	    game.getCurrentPlayer().makeDeposit(10);
-	    return ["", POST_TURN];
-	  });
-
-	  var card15 = new Card("You inherit $100", function(game) {
-	    game.getCurrentPlayer().makeDeposit(100);
-	    return ["", POST_TURN];
-	  });
-
-	  var card16 = new Card("From sale of stock you get $50", function(game) {
-	    game.getCurrentPlayer().makeDeposit(50);
-	    return ["", POST_TURN];
-	  });
-
-	  var card17 = new Card("Holiday Fund matures - Receive $100", function(game) {
-	    game.getCurrentPlayer().makeDeposit(100);
-	    return ["", POST_TURN];
-	  });
-
-	  return [card1, card2, card3, card4, card5, card6, card7, card8, card9, card10, card11, card12, card13, card14, card15, card16, card17];
-	};
-
-	module.exports = CommunityChestDeck;
-
-
-/***/ },
 /* 26 */
 /***/ function(module, exports, __webpack_require__) {
 
-	__webpack_require__(27);
+	var c = __webpack_require__(10);
+	var GridBoard = __webpack_require__(21);
+	var PIXI = __webpack_require__(27);
 
-	var Go = __webpack_require__(28),
-	    CommunityChest = __webpack_require__(30),
-	    IncomeTax = __webpack_require__(31),
-	    Chance = __webpack_require__(33),
-	    Jail = __webpack_require__(34),
-	    GoToJail = __webpack_require__(35),
-	    LuxuryTax = __webpack_require__(36),
-	    FreeParking = __webpack_require__(37),
-	    UtilityProperty = __webpack_require__(38),
-	    HousingProperty = __webpack_require__(40),
-	    RailroadProperty = __webpack_require__(41);
-	    // Board = require('../board/board'); // looks ugly, maybe think of better naming pattern
-	var TableTop = __webpack_require__(1);
+	function View(game, turnMap) {
+	  this.game = game;
+	  this.turnMap = turnMap;
+	  this.turnMap.updateState("start");
+	  this.tokenViews = [];
+	  this.tileViews = [];
+	  this.boardView = new PIXI.Graphics();
+	  this.stage = new PIXI.Container();
+	  this.renderer = PIXI.autoDetectRenderer(c.canvasWidth, c.canvasHeight, 
+	                                          { transparent: true });
+	  document.body.appendChild(this.renderer.view);
+	  
+	  if (game.board instanceof GridBoard) { 
+	    for (var i = 0; i < this.game.board.height; i++) { 
+	      this.tileViews[i] = [];
+	    } 
+	  } 
+	};
 
-	// end of space class definitions
+	View.prototype.drawBoard = function() { 
+	  if (this.game.board instanceof GridBoard) 
+	    this.drawGridBoard();
+	  
+	  /* todo: 
 
+	   else if (this.game.board instanceof PathBoard) 
+	     this.drawPathBoard();
+	   else if (this.game.board instanceof GraphBoard)
+	     this.drawGraphBoard();
+	   else 
+	     do nothing and defer drawing to user? 
 
-	// now let's build the board
-	var board;
-	function buildBoard() {
-	  board = new TableTop.Board();
-	  buildSpaces(board);
-	  return board;
-	}
+	   */
+	};
 
-	function buildSpaces(board) {
-	  var props = propertiesList();
-	  board.spaces = [
+	View.prototype.drawGridBoard = function() {
+	  
+	  this.boardView.x = c.boardStartX;
+	  this.boardView.y = c.boardStartY;
+	  this.boardView.beginFill(c.blueColor, 1);
+	  this.boardView.drawRect(0, 0, c.boardWidth, c.boardHeight);
+	  this.stage.addChild(this.boardView);
+	  this.drawTiles();
+	  this.drawTokens();
+	  this.drawMessage();
+	  this.animate();
+	};
 
-	    // first row
-	    new Go(),
-	    propertyForIndex(MEDITERRANEAN_AVE, props),
-	    new CommunityChest(),
-	    propertyForIndex(BALTIC_AVE, props),
-	    new IncomeTax(),
-	    propertyForIndex(READING_RR, props),
-	    propertyForIndex(ORIENTAL_AVE, props),
-	    new Chance(),
-	    propertyForIndex(VERMONT_AVE, props),
-	    propertyForIndex(CONNECTICUT_AVE, props),
+	// todo 
+	View.prototype.drawPathBoard = function() {
 
-	    // second row
-	    new Jail(),
-	    propertyForIndex(ST_CHARLES_PLACE, props),
-	    propertyForIndex(ELECTRIC_CO, props),
-	    propertyForIndex(STATES_AVE, props),
-	    propertyForIndex(VIRGINIA_AVE, props),
-	    propertyForIndex(PENN_RR, props),
-	    propertyForIndex(ST_JAMES_PLACE, props),
-	    new CommunityChest(),
-	    propertyForIndex(TENNESSEE_AVE, props),
-	    propertyForIndex(NEW_YORK_AVE, props),
+	};
 
-	    // third row
-	    new FreeParking(),
-	    propertyForIndex(KENTUCKY_AVE, props),
-	    new Chance(),
-	    propertyForIndex(INDIANA_AVE, props),
-	    propertyForIndex(ILLINOIS_AVE, props),
-	    propertyForIndex(BO_RR, props),
-	    propertyForIndex(ATLANTIC_AVE, props),
-	    propertyForIndex(VENTNOR_AVE, props),
-	    propertyForIndex(WATERWORKS, props),
-	    propertyForIndex(MARVIN_GARDENS, props),
+	// todo 
+	View.prototype.drawGraphBoard = function() {
 
-	    // fourth row
-	    new GoToJail(),
-	    propertyForIndex(PACIFIC_AVE, props),
-	    propertyForIndex(NORTH_CAROLINA_AVE, props),
-	    new CommunityChest(),
-	    propertyForIndex(PENNSYLVANIA_AVE, props),
-	    propertyForIndex(SHORTLINE_RR, props),
-	    new Chance(),
-	    propertyForIndex(PARK_PLACE, props),
-	    new LuxuryTax(),
-	    propertyForIndex(BOARDWALK, props),
+	};
 
-	  ];
-	}
+	View.prototype.drawTile = function(tile, size) { 
 
-	// indices correlate to order in below function propertiesList()
-	function propertyForIndex(index, props) {
-	  if (index === 5 || index === 15 || index === 25 || index === 35) {
-	    return new RailroadProperty(props[index][0]);
-	  } else if (index === 12 || index === 28) {
-	    return new UtilityProperty(props[index][0], props[index][2]);
-	  } else {
-	    return new HousingProperty(props[index][0], props[index][2], props[index][1], props[index][4], props[index][3]);
+	  console.log("Using default drawTile()");
+	  var tileView = new PIXI.Graphics();
+	  tileView.lineStyle(1, 0, 1);
+	  tileView.beginFill(tile.color, 1);
+	  tileView.drawRect(0, 0, size.width, size.height);
+
+	};
+
+	View.prototype.drawTiles = function() {
+
+	  var tileWidth = c.boardWidth / this.game.board.spaces[0].length;
+	  var tileHeight = c.boardHeight / this.game.board.spaces.length;
+	  var y_pos = c.boardHeight;
+	  var x_pos = 0;
+	  
+	  for (var y = 0; y < this.game.board.spaces.length; y++) {
+	    x_pos = 0;
+	    y_pos -= tileHeight;
+	    for (var x = 0; x < this.game.board.spaces[0].length; x++) {
+
+	      var tile = this.game.board.getSpace(x, y);
+	      var tileView = this.drawTile(tile, {width: tileWidth, height:tileHeight});
+	      tileView.x = x_pos;
+	      tileView.y = y_pos;
+	      
+	      if (this.game.moveType == c.moveTypeManual) { 
+	        tileView.interactive = true;
+	        var context = this;
+	        tileView.click = function(mouseData) {
+	          var selectedSpace;
+	          for (var i = 0; i < context.tileViews.length; i++) {
+	            for (var j = 0; j < context.tileViews[0].length; j++) { 
+	              if (context.tileViews[i][j] == this) { 
+	                selectedSpace = context.game.board.getSpace(i, j);
+	              }
+	            }
+	          }
+	          
+	          context.game.spaceClicked(selectedSpace);
+	        };
+	      } 
+	      
+	      this.tileViews[x][y] = tileView;
+	      this.boardView.addChild(tileView);
+	      
+	      x_pos += tileWidth;
+	    }
 	  }
-	}
+	};
 
-	/* housing properties: [name, color, cost, house cost, [rent, 1, 2, 3, 4, hotel]]
-	 railroads: [name, "Railroad", cost, [1, 2, 3, 4]]
-	 utilities: [name, "Utility", cost]
-	*/
-	function propertiesList() {
-	  return [
-	    [],
-	    ["French Hall", PG_BROWN, 60, 50, [2, 10, 30, 90, 160, 250]],
-	    [],
-	    ["Judge Hall", PG_BROWN, 60, 50, [4, 20, 60, 180, 320, 450]],
-	    [],
-	    ["Novak Cafe"],
-	    ["Ripley Hall", PG_LIGHT_BLUE, 100, 50, [6, 30, 90, 270, 400, 550]],
-	    [],
-	    ["Woodward Hall", PG_LIGHT_BLUE, 100, 50, [6, 30, 90, 270, 400, 550]],
-	    ["Smith Hall", PG_LIGHT_BLUE, 120, 50, [8, 40, 100, 300, 450, 600]],
+	// draws token, puts it on appropriate tile,
+	// adds it to tokenViews
+	View.prototype.drawToken = function(token, size) {
 
-	    [],
-	    ["Gile Hall", PG_PINK, 140, 100, [10, 50, 150, 450, 625, 750]], // 5
-	    ["ORL"],
-	    ["Streeter Hall", PG_PINK, 140, 100, [10, 50, 150, 450, 625, 750]],
-	    ["Lord Hall", PG_PINK, 160, 100, [12, 60, 180, 500, 700, 900]],
-	    ["Collis Cafe"],
-	    ["South Fayerweather Hall", PG_ORANGE, 180, 100, [14, 70, 200, 550, 750, 950]],
-	    [],
-	    ["Fayerweather Hall", PG_ORANGE, 180, 100, [14, 70, 200, 550, 750, 950]],
-	    ["North Fayerweather Hall", PG_ORANGE, 200, 100, [16, 80, 220, 600, 800, 1000]], // 10
+	  console.log("Using default drawToken()");
 
-	    [],
-	    ["South Massachusetts Hall", PG_RED, 220, 150, [18, 90, 250, 700, 875, 1050]],
-	    [],
-	    ["Massachusetts Hall", PG_RED, 220, 150, [18, 90, 250, 700, 875, 1050]],
-	    ["North Massachusetts Hall", PG_RED, 240, 150, [20, 100, 300, 750, 925, 1100]],
-	    ["Courtyard Cafe"],
-	    ["Berry Hall", PG_YELLOW, 260, 150, [22, 110, 330, 800, 975, 1150]],
-	    ["Bildner Hall", PG_YELLOW, 260, 150, [22, 110, 330, 800, 975, 1150]], // 15
-	    ["FO&M"],
-	    ["Rauner Hall", PG_YELLOW, 280, 150, [24, 120, 360, 850, 1025, 1200]],
+	  var tokenView = new PIXI.Graphics();
+	  tokenView.lineStyle(1, 0, 1);
+	  tokenView.beginFill(token.color, 1);
+	  tokenView.drawRect(size.width/2, size.height/2, size.width/2 - 20);
+	  return tokenView;
 
-	    [],
-	    ["Andres Hall", PG_GREEN, 300, 200, [26, 130, 390, 900, 1100, 1275]],
-	    ["Zimmerman Hall", PG_GREEN, 300, 200, [26, 130, 390, 900, 1100, 1275]],
-	    [],
-	    ["Morton Hall", PG_GREEN, 320, 200, [28, 150, 450, 1000, 1200, 1400]],
-	    ["1953 Commons"], // 25
-	    [],
-	    ["Fahey Hall", PG_BLUE, 350, 200, [35, 175, 500, 1100, 1300, 1500]], // 20
-	    [],
-	    ["McLane Hall", PG_BLUE, 400, 200, [50, 200, 600, 1400, 1700, 2000]],
+	};
 
-	  ];
+	View.prototype.drawTokens = function() {
 
-	}
+	  for (var playerIdx in this.game.players) { 
+	    var player = this.game.players[playerIdx];
+	    for (var tokenIdx in player.tokens) {
 
-	module.exports = buildBoard;
+	      var token = player.tokens[tokenIdx];
+	      var position = this.game.board.getSpacePosition(token.space);
+	      var tileView = this.tileViews[position.x][position.y];
+	      
+	      // overridden by user, probably
+	      var tokenView = this.drawToken(token, tileView);
+	      
+	      if (this.game.moveType == c.moveTypeManual) { 
+	        tokenView.interactive = true;
+	        var context = this;
+	        tokenView.click = function(mouseData) { 
+	          var selectedToken;
+	          for (var i = 0; i < context.tokenViews.length; i++) {
+	            if (context.tokenViews[i].view == this) { 
+	              selectedToken = context.tokenViews[i].token;
+	            }
+	          }
+	          context.game.tokenClicked(selectedToken);
+	        };
+	      }
+	      
+	      tileView.addChild(tokenView);
+	      this.tokenViews.push({view: tokenView, token: token});
+	    }
+	  }
+	};
+
+	View.prototype.updateTokenView = function(tokenView) {
+	  
+	  // if it's dead, destroy and return
+	  if (tokenView.token.isDead) {
+	    this.destroyTokenView(tokenView);
+	    return;
+	  } 
+	  
+	  // update if we've moved
+	  var position = this.game.board.getSpacePosition(tokenView.token.space);
+	  var tileView = this.tileViews[position.x][position.y];
+
+	  // make ourself a child of new tile
+	  tokenView.view.removeChild(tileView.view);
+	  tileView.addChild(tokenView.view);
+	};
+
+	View.prototype.updateTokens = function() {
+	  var tokenView;
+	  for (var tokenViewIdx in this.tokenViews) { 
+	    tokenView = this.tokenViews[tokenViewIdx];
+	    this.updateTokenView(tokenView);
+	  } 
+	};
+	  
+	View.prototype.destroyTokenViewForToken = function(token) { 
+
+	  var tokenView;
+	  for (var tokenViewIdx in this.tokenViews) { 
+	    tokenView = this.tokenViews[tokenViewIdx];
+	    if (tokenView.token == token) {
+	      tokenView.view.parent.removeChild(tokenView.view);
+	      tokenView.view.destroy();
+	      this.tokenViews.splice(tokenViewIdx, 1);
+	      return;
+	    }
+	  } 
+	};
+
+	View.prototype.destroyTokenView = function(tokenView) { 
+	  
+	  tokenView.view.parent.removeChild(tokenView.view);
+	  tokenView.view.destroy();
+	  
+	  var tv;
+	  for (var tokenViewIdx in this.tokenViews) { 
+	    tv = this.tokenViews[tokenViewIdx];
+	    if (tv == tokenView) { 
+	      this.tokenViews.splice(tokenViewIdx, 1);
+	      return;
+	    }
+	  } 
+	};
+
+	View.prototype.drawMessage = function() {
+	};
+
+	View.prototype.animate = function() {
+	  this.updateTokens();
+	  requestAnimationFrame(this.animate.bind(this));
+	  this.renderer.render(this.stage);
+	};
+
+
+	module.exports = View;
+
+
 
 
 /***/ },
 /* 27 */
-/***/ function(module, exports) {
-
-	/* WEBPACK VAR INJECTION */(function(global) {// index constants for properties 
-	global.MEDITERRANEAN_AVE = 1;
-	global.BALTIC_AVE = 3;
-	global.READING_RR = 5;
-	global.ORIENTAL_AVE = 6;
-	global.VERMONT_AVE = 8;
-	global.CONNECTICUT_AVE = 9;
-	global.ST_CHARLES_PLACE = 11;
-	global.ELECTRIC_CO = 12;
-	global.STATES_AVE = 13;
-	global.VIRGINIA_AVE = 14;
-	global.PENN_RR = 15;
-	global.ST_JAMES_PLACE = 16;
-	global.TENNESSEE_AVE = 18; 
-	global.NEW_YORK_AVE = 19;
-	global.KENTUCKY_AVE = 21;
-	global.INDIANA_AVE = 23;
-	global.ILLINOIS_AVE = 24;
-	global.BO_RR = 25;
-	global.ATLANTIC_AVE = 26;
-	global.VENTNOR_AVE = 27;
-	global.WATERWORKS = 28;
-	global.MARVIN_GARDENS = 29;
-	global.PACIFIC_AVE = 31;
-	global.NORTH_CAROLINA_AVE = 32;
-	global.PENNSYLVANIA_AVE = 34;
-	global.SHORTLINE_RR = 35;
-	global.PARK_PLACE = 37;
-	global.BOARDWALK = 39;
-
-	// property groups
-	global.PG_BROWN = 0;
-	global.PG_LIGHT_BLUE = 1;
-	global.PG_PINK = 2;
-	global.PG_ORANGE = 3;
-	global.PG_RED = 4;
-	global.PG_YELLOW = 5;
-	global.PG_GREEN = 6;
-	global.PG_BLUE = 7;
-	global.PG_RR = 8;
-	global.PG_UTIL = 9;
-
-	// states
-	global.WAITING_FOR_ROLL = "waitingOnRoll";
-	global.ROLLED = "rolled";
-	global.BUY_PROMPT = "buyPrompt";
-	global.POST_TURN = "postTurn";
-	global.ENDED_TURN = "endedTurn";
-
-	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }())))
-
-/***/ },
-/* 28 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var Space = __webpack_require__(29),
-	    inherits = __webpack_require__(7).inherits;
-
-	function Go() {
-	    this.name = "Go";
-	};
-
-	inherits(Go, Space);
-
-	Go.prototype.performLandingAction = function(game) {
-	  return Go.super_.prototype.performLandingAction.call(this, game);
-	};
-
-	module.exports = Go;
-
-
-
-/***/ },
-/* 29 */
-/***/ function(module, exports, __webpack_require__) {
-
-	__webpack_require__(27);
-
-	var TableTop = __webpack_require__(1);
-	// var Tile = require("../../board/tile");
-	var inherits = __webpack_require__(7).inherits;
-
-
-	function Space(name) {
-	  TableTop.Tile.call(this);
-	  this.name = name;
-	  this.occupier = null;
-	};
-
-	inherits(Space, TableTop.Tile);
-
-
-	// every space needs a landing action
-	Space.prototype.performLandingAction = function(game){
-	  return ["You landed on " + this.name + ". \n", POST_TURN];
-	};
-
-	Space.prototype.isProperty = function() {
-	  return false;
-	};
-
-	module.exports = Space;
-
-
-/***/ },
-/* 30 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var Space = __webpack_require__(29),
-	    inherits = __webpack_require__(7).inherits;
-
-	function CommunityChest() {
-	    this.name = "Community Chest";
-	};
-
-	inherits(CommunityChest, Space);
-
-	CommunityChest.prototype.performLandingAction = function(game) {
-	  var spaceActions = CommunityChest.super_.prototype.performLandingAction.call(this, game);
-	  var ccActions = game.drawCommunityChestCard();
-	  var actions = [];
-	  actions[0] = spaceActions[0].concat(ccActions[0]);
-	  actions[1] = ccActions[1];
-	  return actions;
-	};
-
-	module.exports = CommunityChest;
-
-
-/***/ },
-/* 31 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var Tax = __webpack_require__(32),
-	    inherits = __webpack_require__(7).inherits;
-
-	function IncomeTax() {
-	  this.name = "Income Tax";
-	  // flat tax as default will handle 10% option on landing action
-	  this.taxAmount = 200;
-	}
-
-	inherits(IncomeTax, Tax);
-
-	IncomeTax.prototype.performLandingAction = function(game) {
-	  // todo: this.taxAmount = min(200, player.playerAssetValues*.10);
-	  this.taxAmount = Math.min(200, game.getCurrentPlayer().assets()*.10);
-	  return IncomeTax.super_.prototype.performLandingAction.call(this, game);
-	};
-
-	module.exports = IncomeTax;
-
-
-/***/ },
-/* 32 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var Space = __webpack_require__(29),
-	    inherits = __webpack_require__(7).inherits;
-
-	function Tax() {
-	  this.taxAmount = 0; // give default value of 0, should be overridden
-	}
-
-	inherits(Tax, Space);
-
-	Tax.prototype.performLandingAction = function(game) {
-	  // should probably refactor this into a fn
-	  // that checks balance, prompts player to mortage/sell
-	  // before declaring him bankrupt
-	  var actions = Tax.super_.prototype.performLandingAction.call(this, game);
-	  actions[0] = actions[0].concat(" You payed a tax of $" + this.taxAmount + ". ");
-	  game.getCurrentPlayer().makePayment(this.taxAmount);
-	  return actions;
-	};
-
-	module.exports = Tax;
-
-
-/***/ },
-/* 33 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var Space = __webpack_require__(29),
-	    inherits = __webpack_require__(7).inherits;
-
-	function Chance() {
-	    this.name = "Chance";
-	};
-
-	inherits(Chance, Space);
-
-	Chance.prototype.performLandingAction = function(game) {
-	  var spaceActions = Chance.super_.prototype.performLandingAction.call(this, game);
-	  var chanceActions = game.drawChanceCard();
-	  var actions = [];
-	  actions[0] = spaceActions[0].concat(chanceActions[0]);
-	  actions[1] = chanceActions[1];
-	  return actions;
-	};
-
-	module.exports = Chance;
-
-
-/***/ },
-/* 34 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var Space = __webpack_require__(29),
-	    inherits = __webpack_require__(7).inherits;
-
-	function Jail() {
-	  this.name = "Jail";
-	};
-
-	inherits(Jail, Space);
-
-	Jail.prototype.performLandingAction = function(game) {
-	  return Jail.super_.prototype.performLandingAction.call(this, game);
-	};
-
-	module.exports = Jail;
-
-
-/***/ },
-/* 35 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var Space = __webpack_require__(29),
-	    inherits = __webpack_require__(7).inherits;
-
-	function GoToJail() {
-	  this.name = "Go to Jail";
-	};
-
-	inherits(GoToJail, Space);
-
-	GoToJail.prototype.performLandingAction = function(game) {
-	  game.getCurrentPlayer().sendToJail();
-	  var actions = GoToJail.super_.prototype.performLandingAction.call(this, game);
-	  actions[0] = actions[0].concat(" You've been sent to Jail");
-	  return actions;
-	};
-
-	module.exports = GoToJail;
-
-
-/***/ },
-/* 36 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var Tax = __webpack_require__(32),
-	    inherits = __webpack_require__(7).inherits;
-
-	function LuxuryTax() {
-	  this.name = "Luxury Tax";
-	  this.taxAmount = 75;
-	};
-
-	inherits(LuxuryTax, Tax);
-
-	LuxuryTax.prototype.performLandingAction = function(game) {
-	  return LuxuryTax.super_.prototype.performLandingAction.call(this, game);
-	};
-
-	module.exports = LuxuryTax;
-
-
-/***/ },
-/* 37 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var Space = __webpack_require__(29),
-	    inherits = __webpack_require__(7).inherits;
-
-	function FreeParking() {
-	    this.name = "Free Parking";
-	};
-
-	inherits(FreeParking, Space);
-
-	FreeParking.prototype.performLandingAction = function(game) {
-	  return FreeParking.super_.prototype.performLandingAction.call(this, game);
-	};
-
-	module.exports = FreeParking;
-
-
-/***/ },
-/* 38 */
-/***/ function(module, exports, __webpack_require__) {
-
-	__webpack_require__(27);
-	var Property = __webpack_require__(39),
-	    inherits = __webpack_require__(7).inherits;
-
-	// rent is assumed here (4x, 10x)
-	function UtilityProperty(name) {
-	  var cost = 150;
-	  var propertyGroup = PG_UTIL;
-
-	  Property.call(this, name, cost, propertyGroup);
-	};
-
-	inherits(UtilityProperty, Property);
-
-	UtilityProperty.prototype.performLandingAction = function(game) {
-
-	  return UtilityProperty.super_.prototype.performLandingAction.call(this, game);
-
-	};
-
-	UtilityProperty.prototype.getRent = function(game) {
-	  
-	  if (!this.owner) return 0;
-
-	  var utilityCount = 0;
-	  for (i in this.owner.properties) {
-	    if (this.owner.properties[i].propertyGroup === this.propertyGroup) {
-	      utilityCount++;
-	    }
-	  }
-
-	  var diceRoll = game.dice[0] + game.dice[1];
-	  return utilityCount === 2 ? diceRoll * 10 : diceRoll * 4;
-	};
-
-	module.exports = UtilityProperty;
-
-
-/***/ },
-/* 39 */
-/***/ function(module, exports, __webpack_require__) {
-
-	__webpack_require__ (27);
-	var Space = __webpack_require__(29),
-	    inherits = __webpack_require__(7).inherits;
-
-	function Property(name, cost, propertyGroup) {
-	  Space.call(this, name);
-	  this.cost = cost;
-	  this.mortage = .5*cost;
-	  this.propertyGroup = propertyGroup; // see PG_X constants
-	  this.owner = null;
-	}
-
-	inherits(Property, Space);
-
-	Property.prototype.performLandingAction = function(game) {
-
-	    // todo  - finish hashing this out
-	  var actions = Property.super_.prototype.performLandingAction.call(this, game);
-
-	  var player = game.getCurrentPlayer();
-	  if (this.owner === player) {
-	    actions[0] = actions[0].concat(" You own it!");
-	  } else if (player.owesRent(this)) {
-	    var rent = this.getRent(game);
-	    player.payPlayer(rent, this.owner);
-	    actions[0] = actions[0].concat(" You payed $" + rent + " to " + this.owner.name + ". ");
-	  } else if (!this.owner) {
-	    actions[0] = actions[0].concat(" It is unowned. ");
-	    actions[1] = BUY_PROMPT;
-	  }
-
-	  return actions;
-	};
-
-
-	// overridden in subclasses
-	Property.prototype.getRent = function(player) {
-	  return 0;
-	};
-
-	// default to false here, overridden in subclasses
-	// where appropriate
-	Property.prototype.hasHotel = function(player) {
-	  return false;
-	};
-
-	Property.prototype.isProperty = function() {
-	  return true;
-	};
-
-
-	module.exports = Property;
-
-
-/***/ },
-/* 40 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var Property = __webpack_require__(39),
-	    inherits = __webpack_require__(7).inherits;
-
-	var PG_BROWN = 0;
-	var PG_LIGHT_BLUE = 1;
-	var PG_PINK = 2;
-	var PG_ORANGE = 3;
-	var PG_RED = 4;
-	var PG_YELLOW = 5;
-	var PG_GREEN = 6;
-	var PG_BLUE = 7;
-
-	// rent should be array with following format:
-	// [rent, 1 house, 2 houses, 3 houses, 4 houses, hotel]
-	function HousingProperty(name, cost, propertyGroup, rent, houseCost) {
-	  Property.call(this, name, cost, propertyGroup);
-	  this.rent = rent;
-	  this.numHouses = 0;
-	  this.houseCost = houseCost;
-	};
-
-	inherits(HousingProperty, Property);
-
-	HousingProperty.prototype.performLandingAction = function(game) {
-	  return HousingProperty.super_.prototype.performLandingAction.call(this, game);
-	};
-
-	HousingProperty.prototype.getRent = function(game) {
-
-	  if (!this.owner) return 0;
-
-	  var rent = this.rent[this.numHouses];
-
-	  return this.numHouses === 0 && this.isMonopoly() ? rent*2 : rent;
-	};
-
-	HousingProperty.prototype.isMonopoly = function() {
-	  var groupCount = 0;
-	  for (i in this.owner.properties) {
-	    if (this.owner.properties[i].propertyGroup === this.propertyGroup) {
-	      groupCount++;
-	    }
-	  }
-
-	  return (this.propertyGroup === PG_BROWN || this.propertyGroup === PG_BLUE) ? groupCount === 2 : groupCount === 3;
-	};
-
-	HousingProperty.prototype.hasHotel = function() {
-	  return this.numHouses === 5;
-	};
-
-	module.exports = HousingProperty;
-
-
-/***/ },
-/* 41 */
-/***/ function(module, exports, __webpack_require__) {
-
-	__webpack_require__(27);
-	var Property = __webpack_require__(39),
-	    inherits = __webpack_require__(7).inherits;
-
-	// rent should be array with following format:
-	// [1 owned (rent), 2 owned, 3 owned, 4 owned]
-	function RailroadProperty(name) {
-	  this.rent = [25, 50, 100, 200];
-	  var propertyGroup = PG_RR;
-	  var cost = 200;
-	  Property.call(this, name, cost, propertyGroup);
-	}
-
-	inherits(RailroadProperty, Property);
-
-	RailroadProperty.prototype.performLandingAction = function(game) {
-	  
-	  return RailroadProperty.super_.prototype.performLandingAction.call(this, game);
-
-	};
-
-	RailroadProperty.prototype.getRent = function(game) {
-
-	  if (!this.owner) return 0;
-
-	  var rrCount = 0;
-	  for (i in this.owner.properties) {
-	    if (this.owner.properties[i].propertyGroup === this.propertyGroup) {
-	      rrCount++;
-	    }
-	  }
-
-	  return this.rent[rrCount - 1];
-	};
-
-	module.exports = RailroadProperty;
-
-
-/***/ },
-/* 42 */
-/***/ function(module, exports, __webpack_require__) {
-
-	__webpack_require__(27);
-	var Property = __webpack_require__(39);
-	var TableTop = __webpack_require__(1);
-	var inherits = __webpack_require__(7).inherits;
-
-	console.log(TableTop.Turn);
-
-	function MonopolyTurn(game) {
-	    this.game = game;
-
-	    this.turnMap = new TableTop.Turn({
-	        initialize: function( options ) {
-	            console.log("tests");
-	        },
-
-	        game : game,
-
-	        initialState: "waitingOnRoll",
-
-	        namespace: "test",
-
-	        states: {
-	            uninitialized: {
-	                start : function() {
-	                    this.transition("waitingOnRoll");
-	                }
-	            },
-	            waitingOnRoll: {
-	                _onEnter: function() {
-	                    game.message = this.game.players[game.currentPlayer].name + ": Click 'Continue' to roll dice.";;
-	                },
-
-	                yes : function() {
-	                    this.transition("rolled");
-	                }
-	            },
-
-	            rolled: {
-	                _onEnter : function() {
-	                    var actions = this.game.rollAndMovePlayer();
-	                    this.game.message = actions[0];
-	                    this.transition(actions[1]);
-	                }
-	            },
-
-	            buyPrompt: {
-	                _onEnter : function() {
-	                    var player = this.game.getCurrentPlayer();
-	                    var property = this.game.board.spaces[player.position];
-	                    if (player.canBuy(property)) {
-	                        this.game.message = "Do you want to buy it?";
-	                    } else {
-	                        this.game.message = "You can't afford it.";
-	                        this.transition("postTurn");
-	                    }
-	                },
-
-	                yes : function() {
-	                    var player = this.game.getCurrentPlayer();
-	                    var property = this.game.board.spaces[player.position];
-	                    player.buy(property);
-	                    this.game.message = "You bought " + property.name + ". ";
-	                    this.transition("postTurn");
-	                },
-
-	                no : function() {
-	                    var player = this.game.getCurrentPlayer();
-	                    var property = this.game.board.spaces[player.position];
-	                    this.game.message = "You didn't buy " + property.name + ". ";
-	                    this.transition("postTurn");
-	                }
-	            },
-
-	            postTurn: {
-	                _onEnter : function() {
-	                    this.game.message = "Choose an option (trade, buy houses, etc), or click continue to end your turn";
-	                },
-
-	                yes: function() {
-	                    this.transition("endedTurn");
-	                }
-	            },
-
-	            endedTurn: {
-	                _onEnter : function() {
-	                    this.game.clearActiveCard();
-	                    this.game.nextPlayer();
-	                    this.transition("waitingOnRoll");
-	                }
-	            }
-	        }
-	    });
-	};
-
-	MonopolyTurn.prototype.updateState = function(click) {
-	    this.turnMap.handle(click);
-	};
-
-	MonopolyTurn.prototype.getCurrentState = function() {
-	    return this.turnMap.compositeState();
-	};
-
-	module.exports = MonopolyTurn;
-
-
-/***/ },
-/* 43 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var PIXI = __webpack_require__(44)
-
-	var HousingProperty = __webpack_require__(40);
-	var RailroadProperty = __webpack_require__(41);
-	var UtilityProperty = __webpack_require__(38);
-	var constants = __webpack_require__(46);
-	var Chance = __webpack_require__(33);
-	var CommunityChest = __webpack_require__(30);
-	var IncomeTax = __webpack_require__(31);
-	var LuxuryTax = __webpack_require__(36);
-
-	function MonopolyView(gameState, turnMap) {
-	    this.game = gameState;
-	    this.turnMap = turnMap;
-	    this.turnMap.updateState("start");
-	    this.tiles = [];
-
-	    this.renderer = PIXI.autoDetectRenderer(constants.canvasWidth, constants.canvasHeight,
-	            {backgroundColor : 0x1099bb});
-
-	    document.body.appendChild(this.renderer.view);
-
-	    // create the root of the scene graph
-	    this.stage = new PIXI.Container();
-	    this.activeCardView = null; // empty obj for later use, here for clarity
-	};
-
-	MonopolyView.prototype.drawBoard = function() {
-	    // Draw Board and add to stage
-
-	    var board = new PIXI.Graphics();
-	    //board.lineStyle(1, 0x000000, 1);
-	    board.beginFill(0xC2E2BF, 1);
-	    board.drawRect(constants.boardStartX, constants.boardStartY, constants.boardWidth, constants.boardHeight);
-	    this.stage.addChild(board);
-
-	    // Initialize variables for drawing tiles
-	    var x_pos = constants.leftBuffer;
-	    var y_pos = constants.boardHeight + constants.upperBuffer - constants.tileLongSide;
-	    var x_inc = 0;
-	    var y_inc = 0;
-	    var rotation_degrees = 0;
-	    var property_index = 0;
-
-	    // Draw Tiles
-	    for (i = 0; i < this.game.board.spaces.length; i++) {
-	        // Draw Go
-	        if (i == 0) {
-	            go = this.drawGo(x_pos, y_pos);
-	            this.tiles.push(go);
-	            this.stage.addChild(go);
-
-	            x_correction = 1;
-	            y_correction = 0;
-	            x_inc = 0;
-	            y_inc = -constants.tileShortSide;
-	            rotation = Math.PI / 2;
-	        }
-
-	        // Draw Jail
-	        else if (i == 10) {
-	            y_pos -= constants.tileLongSide;
-
-	            jail = this.drawJail(x_pos, y_pos);
-	            this.tiles.push(jail);
-	            this.stage.addChild(jail);
-
-	            x_correction = 1;
-	            y_correction = 1;
-	            x_pos += constants.tileLongSide;
-	            x_inc = constants.tileShortSide;
-	            y_inc = 0;
-	            rotation = Math.PI;
-	        }
-
-	        // Draw Free Parking
-	        else if (i == 20) {
-	            var free_parking = this.drawFreeParking(x_pos, y_pos);
-	            this.tiles.push(free_parking);
-	            this.stage.addChild(free_parking);
-
-	            x_correction = 0;
-	            y_correction = 1;
-	            y_pos += constants.tileLongSide;
-	            x_pos += constants.tileLongSide;
-	            x_inc = 0;
-	            y_inc = constants.tileShortSide;
-	            rotation = 3 * Math.PI / 2;
-	        }
-
-	        // Draw Go to Jail
-	        else if (i == 30) {
-	            x_pos -= constants.tileLongSide;
-	            var go_jail = this.drawGoToJail(x_pos, y_pos);
-	            this.tiles.push(go_jail);
-	            this.stage.addChild(go_jail);
-
-	            x_correction = 0;
-	            y_correction = 0;
-	            y_pos += constants.tileLongSide;
-	            x_inc = -constants.tileShortSide;
-	            y_inc = 0;
-	            rotation = 0;
-	        }
-
-	        // Else Draw Tile
-	        else {
-	            var property = this.drawTile(x_pos + x_correction, y_pos + y_correction, this.game.board.spaces[i]);
-	            property.rotation = rotation;
-	            this.tiles.push(property);
-	            this.stage.addChild(property);
-
-	            x_pos += x_inc;
-	            y_pos += y_inc;
-	        }
-	    }
-	    // rescale and place logo
-	    this.stage.addChild(this.drawLogo());
-
-	    this.drawPlayers();
-	    this.drawAllPlayersInfo();
-	    this.drawMessage();
-	    this.drawChanceDeck();
-	    this.drawCommunityChestDeck();
-
-	    // run the render loop
-	    this.animate();
-	}
-
-	MonopolyView.prototype.drawChanceDeck = function() {
-	    var deck = new PIXI.Graphics();
-	    deck.x = constants.leftBuffer + (constants.tileLongSide) + 30;
-	    deck.y = constants.upperBuffer + (constants.tileLongSide) + 30 + 150;
-
-	    deck.beginFill(0xE68900, 1);
-	    deck.drawRect(0, 0, 200, 100);
-
-	    var font = {
-	        font: '30px cursive',
-	        align : 'center',
-	        wordWrap : true,
-	        strokeThickness : 1,
-	        wordWrapWidth : 200
-	    };
-	    var text = new PIXI.Text("Chance", font);
-	    text.x = 50;
-	    text.y = 30;
-
-	    deck.addChild(text);
-
-	    deck.rotation = -Math.PI / 4;
-
-	    this.stage.addChild(deck);
-	};
-
-	MonopolyView.prototype.drawCommunityChestDeck = function() {
-	    var deck = new PIXI.Graphics();
-	    deck.x = (constants.boardWidth + constants.leftBuffer - 200) - ((constants.tileLongSide) + 30) + 180;
-	    deck.y = constants.upperBuffer + constants.boardHeight - 100 - ((constants.tileLongSide) + 30) - 50;
-
-	    deck.beginFill(0xFFFF66, 1);
-	    deck.drawRect(0, 0, 200, 100);
-
-	    var font = {
-	        font: '30px cursive',
-	        align : 'center',
-	        wordWrap : true,
-	        strokeThickness : 1,
-	        wordWrapWidth : 200
-	    };
-	    var text = new PIXI.Text("Community Chest", font);
-	    text.x = 25;
-	    text.y = 10;
-
-	    deck.addChild(text);
-
-	    deck.rotation = 3 * Math.PI / 4;
-
-	    this.stage.addChild(deck);
-	};
-
-	MonopolyView.prototype.drawChanceCard = function(chanceCard) {
-	    var width = constants.boardWidth / 2;
-	    var height = width * 0.6;
-	    var xPos = (constants.boardWidth / 4) + constants.leftBuffer;
-	    var yPos = constants.boardHeight / 2 + constants.upperBuffer - (height / 2);
-
-	    var font = {
-	        font: '30px cursive',
-	        align : 'center',
-	        wordWrap : true,
-	        strokeThickness : 1,
-	        wordWrapWidth : (width - 10)
-	    };
-	    var chanceText = new PIXI.Text("Chance", font);
-	    chanceText.x = 30;
-	    chanceText.y = 30;
-	    return this.drawCard(xPos, yPos, width, height, chanceCard.text, 0xE68900, chanceText);
-	}
-
-	MonopolyView.prototype.drawCommunityChestCard = function(chanceCard) {
-	    var width = constants.boardWidth / 2;
-	    var height = width * 0.6;
-	    var xPos = (constants.boardWidth / 4) + constants.leftBuffer;
-	    var yPos = constants.boardHeight / 2 + constants.upperBuffer - (height / 2);
-
-	    var font = {
-	        font: '30px cursive',
-	        align : 'center',
-	        wordWrap : true,
-	        strokeThickness : 1,
-	        wordWrapWidth : (width - 10)
-	    };
-	  var chanceText = new PIXI.Text("Community Chest", font);
-	  chanceText.x = 30;
-	  chanceText.y = 30;
-	  return this.drawCard(xPos, yPos, width, height, chanceCard.text, 0xFFFF66, chanceText);
-	};
-
-	MonopolyView.prototype.drawCard = function(xPos, yPos, width, height, text, color, title) {
-
-	    var card = new PIXI.Graphics();
-	    card.x = xPos;
-	    card.y = yPos;
-	    card.lineStyle(1, 0, 1);
-
-	    card.beginFill(color, 1);
-	    card.drawRect(0, 0, width, height);
-
-	    card.addChild(title);
-
-
-	    var cardText = new PIXI.Text(text, {font: '25px Arial',
-	                                        align : 'center',
-	                                        wordWrap : true,
-	                                        strokeThickness : 1,
-	                                        //wordWrapWidth : (constants.tileLongSide - constants.tileColorLength),
-	                                        wordWrapWidth : (width - 40)
-	                                        });
-	    cardText.x = 20;
-	    cardText.y = 85;
-	    card.addChild(cardText);
-
-	    return card;
-	}
-
-	MonopolyView.prototype.drawTile = function(x_pos, y_pos, tile) {
-	    if (tile instanceof HousingProperty) {
-	        property = this.drawProperty(x_pos, y_pos, tile);
-	    } else if (tile instanceof RailroadProperty) {
-	        property = this.drawRailroadProperty(x_pos, y_pos, tile);
-	    } else if (tile instanceof UtilityProperty) {
-	        property = this.drawUtilityProperty(x_pos, y_pos, tile);
-	    } else if (tile instanceof Chance) {
-	        property = this.drawChanceTile(x_pos, y_pos, tile);
-	    } else if (tile instanceof CommunityChest) {
-	        property = this.drawCommunityChestTile(x_pos, y_pos, tile);
-	    } else if (tile instanceof LuxuryTax) {
-	        property = this.drawLuxuryTaxTile(x_pos, y_pos, tile);
-	    } else if (tile instanceof IncomeTax) {
-	        property = this.drawIncomeTaxTile(x_pos, y_pos, tile);
-	    }
-
-	    else {
-	        property = new PIXI.Graphics();
-	        property.lineStyle(1, 0, 1);
-	        property.x = x_pos;
-	        property.y = y_pos;
-	        property.pivot.set(constants.tileShortSide, constants.tileLongSide);
-	        property.drawRect(0, 0, constants.tileShortSide, constants.tileLongSide);
-	    }
-
-	        // property = this.drawProperty(x_pos, y_pos, tile);
-	    return property;
-	}
-
-	MonopolyView.prototype.drawProperty = function(x_pos, y_pos, property) {
-	    var tile = new PIXI.Graphics();
-	    tile.lineStyle(1, 0, 1);
-	    tile.x = x_pos;
-	    tile.y = y_pos;
-	    tile.pivot.set(constants.tileShortSide, constants.tileLongSide);
-	    tile.drawRect(0, 0, constants.tileShortSide, constants.tileLongSide);
-
-	    tile.beginFill(constants.propertyColors[property.propertyGroup], 1);
-	    tile.drawRect(0, 0, constants.tileShortSide, constants.tileColorLength);
-
-	    if (property.name) {
-	        var name = new PIXI.Text(property.name, {font: '10px Arial',
-	                                                align : 'center',
-	                                                wordWrap : true,
-	                                                strokeThickness : .25,
-	                                                //wordWrapWidth : (constants.tileLongSide - constants.tileColorLength),
-	                                                wordWrapWidth : (constants.tileShortSide),
-	                                                });
-	        name.x = constants.tileShortSide / 2;
-	        name.y = constants.tileColorLength + constants.textPadding;
-	        name.anchor.set(.5, 0);
-	        tile.addChild(name);
-	    }
-
-	    if (property.cost) {
-	        var price = new PIXI.Text('$' + property.cost, {font: '10px Arial',
-	                                                align : 'center',
-	                                                wordWrap : true,
-	                                                strokeThickness : .25,
-	                                                //wordWrapWidth : (constants.tileLongSide - constants.tileColorLength),
-	                                                wordWrapWidth : (constants.tileShortSide),
-	                                                });
-	        price.x =  constants.tileShortSide / 2;
-	        price.y =  constants.tileLongSide - constants.textPadding;
-	        price.anchor.set(.5, 1);
-	        tile.addChild(price);
-	    }
-
-	    return tile;
-	};
-
-	MonopolyView.prototype.drawChanceTile = function(x_pos, y_pos, property) {
-	    var tile = new PIXI.Graphics();
-
-	    tile.lineStyle(1, 0, 1);
-	    tile.x = x_pos;
-	    tile.y = y_pos;
-	    tile.pivot.set(constants.tileShortSide, constants.tileLongSide);
-	    tile.drawRect(0, 0, constants.tileShortSide, constants.tileLongSide);
-
-	    // create a texture from an image path
-	    var texture = PIXI.Texture.fromImage('assets/chance.jpg');
-
-
-	    // rescale and place logo
-	    var logo = new PIXI.Sprite(texture);
-
-	    logo.width = constants.tileShortSide;
-	    logo.height = constants.tileLongSide;
-
-	    logo.position.x = 0;
-	    logo.position.y = 0;
-
-	    tile.addChild(logo);
-
-	    return tile;
-	};
-
-	MonopolyView.prototype.drawCommunityChestTile = function(x_pos, y_pos, property) {
-	    var tile = new PIXI.Graphics();
-
-	    tile.lineStyle(1, 0, 1);
-	    tile.x = x_pos;
-	    tile.y = y_pos;
-	    tile.pivot.set(constants.tileShortSide, constants.tileLongSide);
-	    tile.drawRect(0, 0, constants.tileShortSide, constants.tileLongSide);
-
-	    // create a texture from an image path
-	    var texture = PIXI.Texture.fromImage('assets/community_chest.jpg');
-
-
-	    // rescale and place logo
-	    var logo = new PIXI.Sprite(texture);
-
-	    logo.width = constants.tileShortSide;
-	    logo.height = constants.tileLongSide;
-
-	    logo.position.x = 0;
-	    logo.position.y = 0;
-
-	    tile.addChild(logo);
-
-	    return tile;
-	};
-
-	MonopolyView.prototype.drawUtilityProperty = function(x_pos, y_pos, property) {
-	    var tile = new PIXI.Graphics();
-	    tile.lineStyle(1, 0, 1);
-	    tile.x = x_pos;
-	    tile.y = y_pos;
-	    tile.pivot.set(constants.tileShortSide, constants.tileLongSide);
-	    tile.drawRect(0, 0, constants.tileShortSide, constants.tileLongSide);
-
-	    if (property.name) {
-	        var name = new PIXI.Text(property.name, {font: '10px Arial',
-	                                                align : 'center',
-	                                                wordWrap : true,
-	                                                strokeThickness : .25,
-	                                                //wordWrapWidth : (constants.tileLongSide - constants.tileColorLength),
-	                                                wordWrapWidth : (constants.tileShortSide),
-	                                                });
-	        name.x = constants.tileShortSide / 2;
-	        name.y = constants.textPadding;
-	        name.anchor.set(.5, 0);
-	        tile.addChild(name);
-	    }
-
-	    if (property.cost) {
-	        var price = new PIXI.Text('$' + property.cost, {font: '10px Arial',
-	                                                align : 'center',
-	                                                wordWrap : true,
-	                                                strokeThickness : .25,
-	                                                //wordWrapWidth : (constants.tileLongSide - constants.tileColorLength),
-	                                                wordWrapWidth : (constants.tileShortSide),
-	                                                });
-	        price.x =  constants.tileShortSide / 2;
-	        price.y =  constants.tileLongSide - constants.textPadding;
-	        price.anchor.set(.5, 1);
-	        tile.addChild(price);
-	    }
-
-	    var logo = new PIXI.Text(property.name, {font: '20px Arial', align : 'center', wordWrap : true, strokeThickness : 1.0});
-	    logo.y = constants.tileLongSide / 2;
-	    logo.x = constants.tileShortSide / 2;
-	    logo.anchor.set(.5, .5);
-	    tile.addChild(logo);
-
-	    return tile;
-	}
-
-	MonopolyView.prototype.drawIncomeTaxTile = function(x_pos, y_pos, property) {
-	    var tile = new PIXI.Graphics();
-	    tile.lineStyle(1, 0, 1);
-	    tile.x = x_pos;
-	    tile.y = y_pos;
-	    tile.pivot.set(constants.tileShortSide, constants.tileLongSide);
-	    tile.drawRect(0, 0, constants.tileShortSide, constants.tileLongSide);
-
-	    if (property.name) {
-	        var name = new PIXI.Text("Pay Tuition Bill", {font: '18px Arial',
-	                                                align : 'center',
-	                                                wordWrap : true,
-	                                                strokeThickness : .25,
-	                                                //wordWrapWidth : (constants.tileLongSide - constants.tileColorLength),
-	                                                wordWrapWidth : (constants.tileShortSide) - 10,
-	                                                });
-	        name.x = constants.tileShortSide / 2;
-	        name.y = constants.textPadding;
-	        name.anchor.set(.5, 0);
-	        tile.addChild(name);
-	    }
-
-
-	    var price = new PIXI.Text('$200.00 or 10%', {font: '12px Arial',
-	                                            align : 'center',
-	                                            wordWrap : true,
-	                                            strokeThickness : .25,
-	                                            //wordWrapWidth : (constants.tileLongSide - constants.tileColorLength),
-	                                            wordWrapWidth : (constants.tileShortSide) - 10,
-	                                            });
-	    price.x =  constants.tileShortSide / 2;
-	    price.y =  constants.tileLongSide - constants.textPadding;
-	    price.anchor.set(.5, 1);
-	    tile.addChild(price);
-
-
-	    return tile;
-	};
-
-	MonopolyView.prototype.drawLuxuryTaxTile = function(x_pos, y_pos, property) {
-	    var tile = new PIXI.Graphics();
-	    tile.lineStyle(1, 0, 1);
-	    tile.x = x_pos;
-	    tile.y = y_pos;
-	    tile.pivot.set(constants.tileShortSide, constants.tileLongSide);
-	    tile.drawRect(0, 0, constants.tileShortSide, constants.tileLongSide);
-
-	    if (property.name) {
-	        var name = new PIXI.Text("Pay for Green Print", {font: '18px Arial',
-	                                                align : 'center',
-	                                                wordWrap : true,
-	                                                strokeThickness : .25,
-	                                                //wordWrapWidth : (constants.tileLongSide - constants.tileColorLength),
-	                                                wordWrapWidth : (constants.tileShortSide) - 10,
-	                                                });
-	        name.x = constants.tileShortSide / 2;
-	        name.y = constants.textPadding;
-	        name.anchor.set(.5, 0);
-	        tile.addChild(name);
-	    }
-
-
-	    var price = new PIXI.Text('$75.00', {font: '10px Arial',
-	                                            align : 'center',
-	                                            wordWrap : true,
-	                                            strokeThickness : .25,
-	                                            //wordWrapWidth : (constants.tileLongSide - constants.tileColorLength),
-	                                            wordWrapWidth : (constants.tileShortSide),
-	                                            });
-	    price.x =  constants.tileShortSide / 2;
-	    price.y =  constants.tileLongSide - constants.textPadding;
-	    price.anchor.set(.5, 1);
-	    tile.addChild(price);
-
-
-	    return tile;
-	};
-
-	MonopolyView.prototype.drawRailroadProperty = function(x_pos, y_pos, property) {
-	    var tile = new PIXI.Graphics();
-	    tile.lineStyle(1, 0, 1);
-	    tile.x = x_pos;
-	    tile.y = y_pos;
-	    tile.pivot.set(constants.tileShortSide, constants.tileLongSide);
-	    tile.drawRect(0, 0, constants.tileShortSide, constants.tileLongSide);
-
-	    if (property.name) {
-	        var name = new PIXI.Text(property.name, {font: '10px Arial',
-	                                                align : 'center',
-	                                                wordWrap : true,
-	                                                strokeThickness : .25,
-	                                                //wordWrapWidth : (constants.tileLongSide - constants.tileColorLength),
-	                                                wordWrapWidth : (constants.tileShortSide),
-	                                                });
-	        name.x = constants.tileShortSide / 2;
-	        name.y = constants.textPadding;
-	        name.anchor.set(.5, 0);
-	        tile.addChild(name);
-	    }
-
-	    if (property.cost) {
-	        var price = new PIXI.Text('$' + property.cost, {font: '10px Arial',
-	                                                align : 'center',
-	                                                wordWrap : true,
-	                                                strokeThickness : .25,
-	                                                //wordWrapWidth : (constants.tileLongSide - constants.tileColorLength),
-	                                                wordWrapWidth : (constants.tileShortSide),
-	                                                });
-	        price.x =  constants.tileShortSide / 2;
-	        price.y =  constants.tileLongSide - constants.textPadding;
-	        price.anchor.set(.5, 1);
-	        tile.addChild(price);
-	    }
-
-	    var logo = new PIXI.Text("DDS", {font: '20px Arial', align : 'center', wordWrap : true, strokeThickness : 1.0});
-	    logo.y = constants.tileLongSide / 2;
-	    logo.x = constants.tileShortSide / 2;
-	    logo.anchor.set(.5, .5);
-	    tile.addChild(logo);
-
-	    return tile;
-	};
-
-	MonopolyView.prototype.drawGo = function(x_pos, y_pos) {
-	    var go = new PIXI.Graphics();
-	    go.x = x_pos;
-	    go.y = y_pos;
-	    go.lineStyle(1, 0, 1);
-	    go.drawRect(0, 0, constants.tileLongSide, constants.tileLongSide);
-
-	    arrow = this.drawArrow(constants.goArrowXOffset, constants.goArrowYOffset,
-	            constants.goArrowXLength, constants.goArrowYLength, constants.goArrowColor);
-	    arrow.rotation = Math.PI / 2;
-	    go.addChild(arrow);
-
-	    go_text = new PIXI.Text("GO", {font : "bold 60px Impact", align : "center"});
-	    go_text.anchor.set(.5, .5);
-	    go_text.position.set((constants.tileLongSide / 2), (constants.tileLongSide / 2));
-	    go_text.rotation = Math.PI / 4;
-	    go.addChild(go_text);
-
-	    return go;
-	}
-
-	MonopolyView.prototype.drawJail = function(x_pos, y_pos) {
-	    var jail = new PIXI.Graphics();
-	    jail.x = x_pos;
-	    jail.y = y_pos;
-	    jail.lineStyle(1, 0, 1);
-
-	    jail.drawRect(0, 0, constants.tileLongSide, constants.tileLongSide);
-
-	    var jail_texture = PIXI.Texture.fromImage(constants.jailTexturePath);
-	    var sprt = new PIXI.Sprite(jail_texture);
-
-	    sprt.width = constants.tileLongSide / 1.5;
-	    sprt.height = constants.tileLongSide / 1.5;
-
-	    sprt.position.x = constants.tileLongSide / 2;
-	    sprt.position.y = constants.tileLongSide / 2;
-
-	    sprt.anchor.x = .5;
-	    sprt.anchor.y = .5;
-
-	    jail.addChild(sprt);
-
-	    return jail;
-	}
-
-	MonopolyView.prototype.drawFreeParking = function(x_pos, y_pos) {
-	    var green = new PIXI.Graphics();
-	    green.x = x_pos;
-	    green.y = y_pos;
-	    green.lineStyle(1, 0, 1);
-
-	    green.drawRect(0, 0, constants.tileLongSide, constants.tileLongSide);
-
-	    var green_texture = PIXI.Texture.fromImage(constants.greenTexturePath);
-	    var sprt = new PIXI.Sprite(green_texture);
-
-	    sprt.width = constants.tileLongSide / 1.5;
-	    sprt.height = constants.tileLongSide / 1.5;
-
-	    sprt.position.x = constants.tileLongSide / 2;
-	    sprt.position.y = constants.tileLongSide / 2;
-
-	    sprt.anchor.x = .5;
-	    sprt.anchor.y = .5;
-
-	    green.addChild(sprt);
-
-	    return green;
-	}
-
-	MonopolyView.prototype.drawFreeParking = function(x_pos, y_pos) {
-	    var green = new PIXI.Graphics();
-	    green.x = x_pos;
-	    green.y = y_pos;
-	    green.lineStyle(1, 0, 1);
-
-	    green.drawRect(0, 0, constants.tileLongSide, constants.tileLongSide);
-
-	    var green_texture = PIXI.Texture.fromImage(constants.greenTexturePath);
-	    var sprt = new PIXI.Sprite(green_texture);
-
-	    sprt.width = constants.tileLongSide / 1.5;
-	    sprt.height = constants.tileLongSide / 1.5;
-
-	    sprt.position.x = constants.tileLongSide / 2;
-	    sprt.position.y = constants.tileLongSide / 2;
-
-	    sprt.anchor.x = .5;
-	    sprt.anchor.y = .5;
-
-	    green.addChild(sprt);
-
-	    return green;
-	}
-
-	MonopolyView.prototype.drawGoToJail = function(x_pos, y_pos) {
-	    var goToJail = new PIXI.Graphics();
-	    goToJail.x = x_pos;
-	    goToJail.y = y_pos;
-	    goToJail.lineStyle(1, 0, 1);
-
-	    goToJail.drawRect(0, 0, constants.tileLongSide, constants.tileLongSide);
-
-	    var goodSam = new PIXI.Text('Get Good Sammed', {font: '16px Arial',
-	                                                align : 'center',
-	                                                wordWrap : true,
-	                                                strokeThickness : .25,
-	                                                wordWrapWidth : (constants.tileLongSide),
-	                                                });
-
-	    goodSam.x =  constants.tileLongSide / 2;
-	    goodSam.y =  constants.textPadding;
-	    goodSam.anchor.set(.5, 0);
-	    goToJail.addChild(goodSam);
-
-	    var goToJailTexture = PIXI.Texture.fromImage(constants.goToJailTexturePath);
-	    var sprt = new PIXI.Sprite(goToJailTexture);
-
-	    sprt.width = constants.tileLongSide / 2.0;
-	    sprt.height = constants.tileLongSide / 2.0;
-
-	    sprt.position.x = constants.tileLongSide / 2;
-	    sprt.position.y = 2 * constants.tileLongSide / 3;
-
-	    sprt.anchor.x = .5;
-	    sprt.anchor.y = .5;
-
-	    goToJail.addChild(sprt);
-
-	    return goToJail;
-	}
-
-
-	MonopolyView.prototype.drawLogo = function() {
-	    var dartmouth_texture = PIXI.Texture.fromImage(constants.logoTexturePath);
-	    var logo = new PIXI.Sprite(dartmouth_texture);
-
-	    logo.width = constants.logoSizeX;
-	    logo.height = constants.logoSizeY;
-
-	    logo.position.x = constants.logoPosX;
-	    logo.position.y = constants.logoPosY;
-
-	    logo.anchor.x = .5;
-	    logo.anchor.y = .5;
-	    logo.rotation = constants.logoRotation;
-
-	    return logo;
-	}
-
-
-	MonopolyView.prototype.drawArrow = function(x_pos, y_pos, x_len, y_len, fill_color) {
-	    arrow = new PIXI.Graphics();
-	    arrow.x = x_pos;
-	    arrow.y = y_pos;
-	    arrow.lineStyle(1, 0, 1);
-	    arrow.beginFill(fill_color);
-	    point_divisor = 6.0;
-	    thickness_divisor = 4.0;
-
-	    arrow.drawPolygon(0, (y_len / 2),
-	            (x_len / point_divisor), 0,
-	            (x_len / point_divisor), (y_len / thickness_divisor),
-	            x_len, (y_len / thickness_divisor),
-	            x_len, y_len - (y_len / thickness_divisor),
-	            (x_len / point_divisor), y_len - (y_len / thickness_divisor),
-	            (x_len / point_divisor), y_len);
-
-	    return arrow;
-	}
-
-	MonopolyView.prototype.drawPlayerInfo = function(player) {
-	    var info = new PIXI.Text(player.name + "\nDBA: $" + player.money, {font: '20px Arial',
-	                                                align : 'left',
-	                                                wordWrap : true,
-	                                                strokeThickness : .25,
-	                                                //wordWrapWidth : (constants.tileLongSide - constants.tileColorLength),
-	                                                wordWrapWidth : constants.canvasWidth - constants.boardWidth - (4 * constants.leftBuffer),
-	                                                });
-	    return info;
-	}
-
-	MonopolyView.prototype.drawAllPlayersInfo = function() {
-	    var infoBlock = new PIXI.Graphics();
-	    infoBlock.x = constants.boardWidth + constants.leftBuffer * 2;
-	    infoBlock.y = constants.upperBuffer;
-	    var blockSize = 150;
-	    this.playerInfos = [];
-	    for (var i in this.game.players) {
-	        var player = this.game.players[i];
-	        var info = this.drawPlayerInfo(player);
-	        info.x = constants.leftBuffer * 0.2;
-	        info.y = i * blockSize + (constants.upperBuffer * 0.2);
-
-	        var playerColor = new PIXI.Graphics();
-	        playerColor.x = constants.leftBuffer * 3;
-	        playerColor.y = i * blockSize + (constants.upperBuffer * 0.2);
-	        playerColor.beginFill(constants.playerColors[player.color]);
-	        playerColor.drawRect(0, 0, 20, 20);
-
-	        var box = new PIXI.Graphics();
-	        box.y = i * blockSize;
-
-	        var outline = new PIXI.Graphics();
-	        outline.y = i * blockSize;
-	        outline.lineStyle(1, 0, 1);
-	        outline.drawRect(0, 0, constants.canvasWidth - constants.boardWidth - (3 * constants.leftBuffer), 140);
-
-	        box.lineStyle(1, 0, 1);
-	        box.beginFill(0x44C0DF, 1);
-	        box.drawRect(0, 0, constants.canvasWidth - constants.boardWidth - (3 * constants.leftBuffer), 140);
-	        this.playerInfos.push({background: box, text: info});
-
-	        infoBlock.addChild(outline);
-	        infoBlock.addChild(box);
-	        infoBlock.addChild(info);
-	        infoBlock.addChild(playerColor);
-
-
-	    }
-	    this.stage.addChild(infoBlock);
-	};
-
-	MonopolyView.prototype.updatePlayerInfo = function(player, index) {
-	    var info = this.playerInfos[index].text;
-	    var box = this.playerInfos[index].background;
-
-	    if (player === this.game.getCurrentPlayer()) {
-	        box.alpha = 1;
-	    } else {
-	        box.alpha = 0;
-	    }
-	    var propertyNames = "";
-	    for (var i in player.properties) {
-	        propertyNames += player.properties[i].name;
-	        propertyNames += ", ";
-	    }
-	    info.text = player.name + "\nDBA: $" + player.money + "\nProperties: " + propertyNames;
-	};
-
-	MonopolyView.prototype.updateAllPlayersInfo = function() {
-	    for (var i in this.game.players) {
-	        var player = this.game.players[i];
-	        this.updatePlayerInfo(player, i);
-	    }
-	}
-
-	MonopolyView.prototype.drawPlayerToken = function(player) {
-	    var token = new PIXI.Graphics();
-	    token.lineStyle(1, 0, 1);
-	    token.beginFill(constants.playerColors[player.color], 1);
-	    var tile = this.tiles[player.position];
-	    token.drawRect(5, 50, constants.tokenWidth, constants.tokenHeight);
-	    tile.addChild(token);
-	    this.tokenViews.push({token: token, tile: tile});
-	};
-
-	MonopolyView.prototype.drawPlayers = function() {
-	    this.tokenViews = [];
-	    for (index in this.game.players) {
-	        var token = this.drawPlayerToken(this.game.players[index]);
-	    }
-	};
-
-	MonopolyView.prototype.updatePlayer = function(player, index) {
-	    var playerView = this.tokenViews[index];
-	    var token = playerView.token;
-
-	    // remove the token from the previous tile
-	    var previousTile = playerView.tile;
-	    previousTile.removeChild(token);
-
-	    // add the token as a child to the new tile
-	    var currentTile = this.tiles[player.position];
-	    currentTile.addChild(token);
-	    this.tokenViews[index] = {token: token, tile: currentTile};
-
-	    // calculate an offset for the token if there are multiple
-	    var count = 0;
-	    for (i = 0; i < index; i++) {
-	        if (this.game.players[i].position == player.position) {
-	            count++;
-	        }
-	    }
-	    token.x = ((constants.tokenWidth + 2) * count);
-	}
-
-	MonopolyView.prototype.updatePlayers = function() {
-	    for (index in this.game.players) {
-	        this.updatePlayer(this.game.players[index], index);
-	    }
-	};
-
-	MonopolyView.prototype.updateCardsDisplays = function() {
-	    if (this.game.activeCard && !this.activeCardView) {
-
-	        if (this.game.chanceCards.cards.indexOf(this.game.activeCard) >= 0)
-	            this.activeCardView = this.drawChanceCard(this.game.activeCard);
-	        else
-	            this.activeCardView = this.drawCommunityChestCard(this.game.activeCard);
-
-	        this.stage.addChild(this.activeCardView);
-
-	    } else if (!this.game.activeCard && this.activeCardView) {
-	        this.stage.removeChild(this.activeCardView);
-	        this.activeCardView = null;
-	    }
-
-	};
-
-	MonopolyView.prototype.drawMessage = function() {
-	    var container = new PIXI.Container();
-	    this.messageText = new PIXI.Text(this.game.message, {font: '30px Arial',
-	                                                align : 'center',
-	                                                wordWrap : true,
-	                                                strokeThickness : .25,
-	                                                //wordWrapWidth : (constants.tileLongSide - constants.tileColorLength),
-	                                                wordWrapWidth : constants.canvasWidth - (2 * constants.leftBuffer),
-	                                                });
-	    container.x = constants.leftBuffer;
-	    container.y = constants.boardHeight + (2 * constants.upperBuffer);
-	    container.addChild(this.messageText);
-
-	    button1 = new PIXI.Graphics();
-	    button1.y = 180;
-	    button1.beginFill(0x00FF00, 1);
-	    button1.drawRect(0, 0, 200, 50);
-	    container.addChild(button1);
-
-	    button1.interactive = true;
-	    var context = this;
-	    button1.click = function(mouseData){
-	       this.turnMap.updateState("yes");
-	    }.bind(this);
-
-	    this.button1Text = new PIXI.Text("Yes", {font: '30px Arial',
-	                                                align : 'center',
-	                                                wordWrap : true,
-	                                                strokeThickness : .25,
-	                                                //wordWrapWidth : (constants.tileLongSide - constants.tileColorLength),
-	                                                wordWrapWidth : 150,
-	                                                });
-	    this.button1Text.x = 50;
-	    button1.addChild(this.button1Text);
-
-	    this.button2 = new PIXI.Graphics();
-	    this.button2.x = 250;
-	    this.button2.y = 180;
-	    this.button2.beginFill(0xFF0000, 1);
-	    this.button2.drawRect(0, 0, 200, 50);
-	    container.addChild(this.button2);
-
-	    this.button2.interactive = true;
-	    this.button2.click = function(mouseData) {
-	        this.turnMap.updateState("no");
-	    }.bind(this);
-
-	    this.button2Text = new PIXI.Text("No", {font: '30px Arial',
-	                                                align : 'center',
-	                                                wordWrap : true,
-	                                                strokeThickness : .25,
-	                                                //wordWrapWidth : (constants.tileLongSide - constants.tileColorLength),
-	                                                wordWrapWidth : 150,
-	                                                });
-	    this.button2Text.x = 50;
-	    this.button2.addChild(this.button2Text);
-
-	    this.stage.addChild(container);
-	};
-
-	MonopolyView.prototype.updateMessage = function() {
-	    this.messageText.text = this.game.message;
-
-	    switch (this.turnMap.getCurrentState()) {
-
-	      case BUY_PROMPT:
-
-	        this.button1Text.text = "Yes";
-	        this.button2Text.text = "No";
-	        this.button2.alpha = 1;
-	        break;
-
-	      default:
-	        this.button1Text.text = "Continue";
-	        this.button2Text.text = "";
-	        this.button2.alpha = 0;
-	        break;
-	    }
-	};
-
-	MonopolyView.prototype.updateProperties = function() {
-	    for (var i in this.tiles) {
-	        var property = this.game.board.spaces[i];
-	        if (property.owner) {
-	            var tile = this.tiles[i];
-	            var ownerTag = new PIXI.Graphics();
-	            ownerTag.x = 0;
-	            ownerTag.y = constants.tileLongSide - 15;
-	            ownerTag.beginFill(constants.playerColors[property.owner.color], 1);
-	            ownerTag.drawRect(0, 0, constants.tileShortSide, 15);
-	            tile.addChild(ownerTag);
-	        }
-	    }
-	}
-
-	MonopolyView.prototype.animate = function() {
-	    this.updatePlayers();
-	    this.updateAllPlayersInfo();
-	    this.updateCardsDisplays();
-	    this.updateMessage();
-	    this.updateProperties();
-	    requestAnimationFrame(this.animate.bind(this));
-	    this.renderer.render(this.stage);
-	};
-
-	module.exports = MonopolyView;
-
-
-
-
-/***/ },
-/* 44 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var require;var require;/* WEBPACK VAR INJECTION */(function(global, setImmediate) {(function(f){if(true){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.PIXI = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return require(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
@@ -43775,13 +42273,13 @@
 
 
 	//# sourceMappingURL=pixi.js.map
-	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }()), __webpack_require__(45).setImmediate))
+	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }()), __webpack_require__(28).setImmediate))
 
 /***/ },
-/* 45 */
+/* 28 */
 /***/ function(module, exports, __webpack_require__) {
 
-	/* WEBPACK VAR INJECTION */(function(setImmediate, clearImmediate) {var nextTick = __webpack_require__(8).nextTick;
+	/* WEBPACK VAR INJECTION */(function(setImmediate, clearImmediate) {var nextTick = __webpack_require__(6).nextTick;
 	var apply = Function.prototype.apply;
 	var slice = Array.prototype.slice;
 	var immediateIds = {};
@@ -43857,95 +42355,215 @@
 	exports.clearImmediate = typeof clearImmediate === "function" ? clearImmediate : function(id) {
 	  delete immediateIds[id];
 	};
-	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(45).setImmediate, __webpack_require__(45).clearImmediate))
+	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(28).setImmediate, __webpack_require__(28).clearImmediate))
 
 /***/ },
-/* 46 */
-/***/ function(module, exports) {
+/* 29 */
+/***/ function(module, exports, __webpack_require__) {
 
-	var viewConstants = new Object();
+	var inherits = __webpack_require__(5).inherits;
+	var TableTop = __webpack_require__(1);
 
-	// START CONSTANTS
+	function CheckersGame(players, board, turnMap) {
+	  TableTop.Game.call(this, players, board, turnMap);
+	  this.currentPlayer = 0;
+	  this.moveType = TableTop.Constants.moveTypeManual;
+	  this.moveEvaluationType = TableTop.Constants.moveEvalationTypeGameEvaluator;
+	  board.tokens.forEach(function(token) { 
+	    var player = token.color == TableTop.Constants.redColor ? players[0] : players[1];
+	    token.owner = player;
+	    player.tokens.push(token);
+	  });
+	};
 
-	// CANVAS
-	// Constants defining the canvas properties
-	viewConstants.canvasWidth = 1500;
-	viewConstants.canvasHeight = 1200;
+	inherits(CheckersGame, TableTop.Game);
 
-	viewConstants.leftBuffer = 50;
-	viewConstants.rightBuffer = 50;
-	viewConstants.upperBuffer = 50;
+	CheckersGame.prototype.executeMove = function() {  
 
-	// BOARD
-	// Constants for defining the board on top of the canvas
-	viewConstants.boardWidth = 800;
-	viewConstants.boardHeight = 800;
+	    // store proposedMove data for convenience
+	    var token = this.proposedMove.token;
+	    var destination = this.proposedMove.destination;
 
-	viewConstants.boardStartX = viewConstants.leftBuffer;
-	viewConstants.boardStartY = viewConstants.upperBuffer;
+	    // get positions of current token space and the destination
+	    var oldPosition = this.board.getSpacePosition(token.space);
+	    var newPosition = this.board.getSpacePosition(destination);
 
-	// PROPERTY
-	// Constants defining properties of properties
-	viewConstants.tileLongSide = viewConstants.boardWidth / 7.0;
-	viewConstants.tileShortSide = ((viewConstants.boardWidth - 2.0 * viewConstants.tileLongSide) / 9.0);
-	viewConstants.tileColorLength = viewConstants.tileLongSide / 6.0;
-	viewConstants.textPadding = 5;
+	    // check if we jumped a token, and remove it if so 
+	    var jumpedToken = this.getJumpedToken(token, oldPosition, newPosition);
 
-	// GO SPACE
-	viewConstants.goArrowXLength = .8 * viewConstants.tileLongSide;
-	viewConstants.goArrowYLength = .15 * viewConstants.tileLongSide;
-	viewConstants.goArrowXOffset = 1.25 * viewConstants.goArrowYLength;
-	viewConstants.goArrowYOffset = (viewConstants.tileLongSide - viewConstants.goArrowXLength) / 2;
-	viewConstants.goArrowColor = 0xD20019;
+	    if (jumpedToken)
+	        jumpedToken.destroy();
 
-	// JAIL SPACE
-	viewConstants.jailTexturePath = 'assets/patch.jpg';
+	    // move the token to the new space and clear proposedMove
+	    this.moveTokenToSpace(token, destination);
+	    this.proposedMove = {};
+	};
 
-	// FREE PARKING SPACE
-	viewConstants.greenTexturePath = 'assets/green.jpg';
+	CheckersGame.prototype.getJumpedToken = function(token, oldPos, newPos) { 
 
-	// GO TO JAIL SPACE
-	viewConstants.goToJailTexturePath = 'assets/jailGuy.png';
-	// Property Colors
-	viewConstants.propertyColors = [
-	    0x6F3A19,
-	    0x88C8F3,
-	    0xC90071,
-	    0xE68900,
-	    0xD20019,
-	    0xE6E60F,
-	    0x0AA345,
-	    0x2D4A9B,
-	];
+	    // are we moving up or down? 
+	    var yModifier = token.color == TableTop.Constants.redColor ? 1 : -1;
 
-	viewConstants.playerColors = [
-	    0xFF0000,
-	    0x00FF00,
-	    0x0000FF,
-	    0xFF00FF,
-	    0x00FFFF,
-	    0xFFFF00,
-	];
+	    // grab the occupier of the space that we jumped
+	    // if we didn't jump anything, this will return null - that's what we want!
+	    if (newPos.x > oldPos.x)
+	        return this.board.getSpace(oldPos.x + 1, oldPos.y + yModifier).occupier;
+	    else  
+	        return this.board.getSpace(oldPos.x - 1, oldPos.y + yModifier).occupier;
 
-	// DARTMOUTH LOGO
-	// Constants for drawing Dartmouth logo at center of board
-	viewConstants.logoTexturePath = 'assets/Big_D.png';
-	viewConstants.logoSizeX = 300;
-	viewConstants.logoSizeY = 200;
+	};
 
-	viewConstants.logoPosX = viewConstants.leftBuffer + (viewConstants.boardWidth / 2);
-	viewConstants.logoPosY = viewConstants.upperBuffer + (viewConstants.boardHeight / 2);
+	CheckersGame.prototype.isValidMove = function(token, oldSpace, newSpace) { 
 
-	viewConstants.logoRotation = - Math.PI * .25;
+	    var oldPos = this.board.getSpacePosition(oldSpace);
+	    var newPos = this.board.getSpacePosition(newSpace);
 
-	viewConstants.tokenWidth = 10;
-	viewConstants.tokenHeight = 10;
+	    var player = this.getCurrentPlayer();
 
-	// END CONSTANTS
+	    /* 
+	       If we don't own the piece or
+	       the destination is a red space or 
+	       the destination is occupied 
+	       it's not a valid move! 
+	    */
+	    if (token.owner != player || 
+	       newSpace.color == TableTop.Constants.redColor || 
+	       newSpace.occupier) 
+	     return false;
 
-	module.exports = viewConstants;
+	    return this.validNormalMove(token, oldPos, newPos, 1) || 
+	      this.validJumpMove(token, oldPos, newPos);  
+	};
+
+	CheckersGame.prototype.validNormalMove = function(token, oldPos, newPos, moveLen) { 
+
+	    // are we moving up or down? 
+	    var yModifier = token.color == TableTop.Constants.redColor ? moveLen : -moveLen;
+	    return oldPos.y + yModifier == newPos.y && Math.abs(oldPos.x - newPos.x) == moveLen;
+
+	};
+
+	CheckersGame.prototype.validJumpMove = function(token, oldPos, newPos) { 
+
+	    // make sure it's a valid normal move that's two spaces long
+	    if (!this.validNormalMove(token, oldPos, newPos, 2)) return false;
+
+	    // make sure we jump an enemy token 
+	    var jumpedToken = this.getJumpedToken(token, oldPos, newPos);
+	    return jumpedToken && jumpedToken.color != token.color;
+
+	};
+
+	CheckersGame.prototype.playerDidWin = function(player) { 
+	   var otherPlayer = (this.players[0] == player) ? this.players[1] : this.players[0];
+	   var tokens = otherPlayer.tokens;
+	   for (var tokenIdx in tokens) { 
+	       if (tokens[tokenIdx]) return false;
+	   } 
+
+	   return true;
+	};
 
 
+	module.exports = CheckersGame;
+
+
+/***/ },
+/* 30 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var inherits = __webpack_require__(5).inherits;
+	var TableTop = __webpack_require__(1);
+
+	function CheckerBoard() { 
+	  TableTop.GridBoard.call(this, 8, 8);
+	  this.buildTiles();
+	  this.buildTokens();
+	}       
+
+	inherits(CheckerBoard, TableTop.GridBoard);
+
+
+	CheckerBoard.prototype.buildTiles = function() { 
+	  var tileColor = TableTop.Constants.redColor;
+	  var tile;
+	  for (var y = 0; y < this.height; y++) {
+	    tileColor = (tileColor == TableTop.Constants.redColor) ? TableTop.Constants.blackColor : TableTop.Constants.redColor;
+	    for (var x = 0; x < this.width; x++) {
+	    tile = new TableTop.Tile({color: tileColor});
+	    this.spaces[x][y] = tile;
+	    tileColor = (tileColor == TableTop.Constants.redColor) ? TableTop.Constants.blackColor : TableTop.Constants.redColor;
+	    }
+	  } 
+	};
+
+	CheckerBoard.prototype.buildTokens = function() { 
+
+	    // define coordinates for red and white tokens
+	    var redX = [0, 2, 4, 6, 1, 3, 5, 7, 0, 2, 4, 6];
+	    var redY = [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2];
+	    var whiteX = [1, 3, 5, 7, 0, 2, 4, 6, 1, 3, 5, 7];
+	    var whiteY = [5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7];
+
+	    // build the tokens
+	    var space;
+	    for (var i = 0; i < redX.length; i++) { 
+
+	        space = this.getSpace(redX[i], redY[i]);
+	        this.buildTokenForSpace(space, TableTop.Constants.redColor);
+
+	        space = this.getSpace(whiteX[i], whiteY[i]);
+	        this.buildTokenForSpace(space, TableTop.Constants.whiteColor);
+	    }
+	};
+
+	// creates the token for given space and color, 
+	// adds it to the space, 
+	// and appends it to our list of tokens
+	CheckerBoard.prototype.buildTokenForSpace = function(space, color) { 
+	    var token = new TableTop.Token(null, space, color);
+	    space.addOccupier(token);
+	    this.tokens.push(token);
+	};
+
+
+	module.exports = CheckerBoard;
+
+
+/***/ },
+/* 31 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var TableTop = __webpack_require__(1);
+	var inherits = __webpack_require__(5).inherits;
+
+	function CheckerView(game, turnMap) {
+	  TableTop.View.call(this, game, turnMap);
+	}
+
+	inherits(CheckerView, TableTop.View);
+
+	CheckerView.prototype.drawTile = function(tile, size) {
+
+	  var tileView = new PIXI.Graphics();
+	  tileView.lineStyle(1, 0, 1); 
+	  tileView.beginFill(tile.color, 1); 
+	  tileView.drawRect(0, 0, size.width, size.height);
+	  return tileView;
+
+	};
+
+	CheckerView.prototype.drawToken = function(token, size) {
+
+	  var tokenView = new PIXI.Graphics();
+	  tokenView.lineStyle(1, 0, 1);
+	  tokenView.beginFill(token.color, 1);
+	  tokenView.drawCircle(size.width/2, size.height/2, size.width/2 - 20);
+	  return tokenView;
+
+	};
+
+	module.exports = CheckerView;
 
 
 /***/ }
