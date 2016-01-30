@@ -6,21 +6,20 @@ var Checkers = require('./checkers_game');
 var CheckerBoard = require('./checkers_board');
 var CheckerView = require('./checkers_view');
 
-// create the players
-var redPlayer = new TableTop.Player("Red", 1);
-var whitePlayer = new TableTop.Player("White", 2);
-var players = [redPlayer, whitePlayer];
-
-// create the Board, Game, and TurnMap
+// create the Board and Game
 var board = new CheckerBoard();
-var checkers = new Checkers(players, board);
-var turnMap = new TableTop.ManualTurn(checkers);
+var checkers = new Checkers(board);
+
+//create our startView
+var startView = new TableTop.StartView(checkers);
+var view = new CheckerView(checkers);
+var nextPlayerView = new TableTop.NextPlayerView(checkers);
+var gameOverView = new TableTop.GameOverView(checkers);
+
+//create the turnmap
+var turnMap = new TableTop.ManualTurn(checkers, startView, view, gameOverView, nextPlayerView);
+
 checkers.setTurnMap(turnMap);
-
-
-// create our view, and draw it
-var view = new CheckerView(checkers, turnMap);
-view.drawBoard();
 
 // this initiates the TurnMap ("Gameloop") and 
 // gets the ball rolling!

@@ -48,30 +48,28 @@
 
 	// Our 5 Main Components
 	var TableTop = __webpack_require__(1);
-	var Checkers = __webpack_require__(30);
-	var CheckerBoard = __webpack_require__(31);
-	var CheckerView = __webpack_require__(32);
+	var Checkers = __webpack_require__(37);
+	var CheckerBoard = __webpack_require__(38);
+	var CheckerView = __webpack_require__(39);
 
-	// create the players
-	var redPlayer = new TableTop.Player("Red", 1);
-	var whitePlayer = new TableTop.Player("White", 2);
-	var players = [redPlayer, whitePlayer];
-
-	// create the Board, Game, and TurnMap
+	// create the Board and Game
 	var board = new CheckerBoard();
-	var checkers = new Checkers(players, board);
-	var turnMap = new TableTop.ManualTurn(checkers);
+	var checkers = new Checkers(board);
+
+	//create our startView
+	var startView = new TableTop.StartView(checkers);
+	var view = new CheckerView(checkers);
+	var nextPlayerView = new TableTop.NextPlayerView(checkers);
+	var gameOverView = new TableTop.GameOverView(checkers);
+
+	//create the turnmap
+	var turnMap = new TableTop.ManualTurn(checkers, startView, view, gameOverView, nextPlayerView);
+
 	checkers.setTurnMap(turnMap);
-
-
-	// create our view, and draw it
-	var view = new CheckerView(checkers, turnMap);
-	view.drawBoard();
 
 	// this initiates the TurnMap ("Gameloop") and 
 	// gets the ball rolling!
 	checkers.updateState("start");
-
 
 /***/ },
 /* 1 */
@@ -90,24 +88,28 @@
 
 	var core = Object.assign({
 
-	    ArrayBoard: __webpack_require__(13),
-	    Board: __webpack_require__(14),
-	    Card: __webpack_require__(15),
+	    ArrayBoard: __webpack_require__(10),
+	    Board: __webpack_require__(11),
+	    Card: __webpack_require__(12),
 	    Component: __webpack_require__(5),
-	    Constants: __webpack_require__(16),
-	    Deck: __webpack_require__(17),
-	    EdgeTile: __webpack_require__(19),
-	    Game: __webpack_require__(21),
-	    GridBoard: __webpack_require__(22),
-	    ManualTurn: __webpack_require__(3),
-	    Player: __webpack_require__(23),
-	    Tile: __webpack_require__(20),
-	    Token: __webpack_require__(24),
-	    Trade: __webpack_require__(25),
-	    Turn: __webpack_require__(4),
-	    Utils: __webpack_require__(18),
-	    VertexTile: __webpack_require__(26),
-	    View: __webpack_require__(27)
+	    Constants: __webpack_require__(4),
+	    Deck: __webpack_require__(13),
+	    EdgeTile: __webpack_require__(15),
+	    Game: __webpack_require__(17),
+	    GameOverView: __webpack_require__(23),
+	    GridBoard: __webpack_require__(24),
+	    ManualTurn: __webpack_require__(18),
+	    NextPlayerView: __webpack_require__(3),
+	    Player: __webpack_require__(25),
+	    StartView: __webpack_require__(26),
+	    StyleSheets: __webpack_require__(27),
+	    Tile: __webpack_require__(16),
+	    Token: __webpack_require__(31),
+	    Trade: __webpack_require__(32),
+	    Turn: __webpack_require__(19),
+	    Utils: __webpack_require__(14),
+	    VertexTile: __webpack_require__(33),
+	    View: __webpack_require__(34)
 
 	});
 
@@ -118,109 +120,134 @@
 /* 3 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var Turn = __webpack_require__(4);
+	var c = __webpack_require__(4);
+	var Component = __webpack_require__(5);
 	var inherits = __webpack_require__(6).inherits;
 
-	function ManualTurn(game) { 
-	  
+	/**
+	 * The NextPlayerView class
+	 * @constructor
+	 * @param {Game} game - the game state
+	 * @extends {Component}
+	*/
+	function NextPlayerView(game) {
+	  Component.call(this);
 	  this.game = game;
-	  this.turnMap = new Turn({ 
-	    initialize: function( options ) {},
-	    
-	    game : game, 
+	};
+	inherits(NextPlayerView, Component);
 
-	    initialState: "uninitialized",
-	    
-	    namespace: "test",
-
-	    states: { 
-	      
-	      // 1
-	      uninitialized: { 
-	        start : function() { 
-	          this.transition("waitingForMove");
-	        } 
-	      },
-
-	      // 2 
-	      waitingForMove: { 
-	        _onEnter: function() { 
-	          console.log(this.game.getCurrentPlayer().name + ": Make your move.");
-	        },
-	        
-	        makeMove : function() { 
-	          if (game.hasValidMove()) { 
-	            game.executeMove();
-	            this.transition("postTurn");
-	          } else { 
-	            console.log("Invalid move. Try again.");
-	          } 
-	        } 
-	      },
-
-	      // 3
-	      postTurn: { 
-	        _onEnter : function() { 
-	          if (this.game.playerDidWin(game.getCurrentPlayer())) { 
-	            this.transition("gameOver");
-	          } else { 
-	            this.game.nextPlayer();
-	            this.transition("waitingForMove");
-	          }
-	        } 
-	      },
-
-	      // 4
-	      gameOver : { 
-	        _onEnter : function() { 
-	          console.log(this.game.getCurrentPlayer().name + " has won.");
-	        } 
-	      } 
-	      
-	    } 
-	    
-	  });
-	  
-	} 
-
-	ManualTurn.prototype.updateState = function(command) {
-	    this.turnMap.handle(command);
+	/**
+	 * draws the next player view
+	 * @returns {void}
+	*/
+	NextPlayerView.prototype.drawView = function() {
+	  this.setupPage();
 	};
 
-	ManualTurn.prototype.getCurrentState = function() {
-	    return this.turnMap.compositeState();
+	/**
+	 * sets up the pageto take in the provided HTML text string 
+	 * also sets up the onclick for the button
+	 * @returns {void}
+	*/
+	NextPlayerView.prototype.setupPage = function() {
+	  document.getElementById('div1').innerHTML = this.getHTMLText();
+	  var context = this;
+	  document.getElementById('btnContinue').onclick=function(){context.handleButtonClick()};
+	};
+
+	/**
+	 * provides the htmlText to be place in a div on the page
+	 * @returns {string} htmlText
+	*/
+	NextPlayerView.prototype.getHTMLText= function() {
+	  var htmlText = ' <form id="form1">\
+	  Please pass to ' + this.game.getCurrentPlayer().name + '. It is their turn.<br>\
+	    <input type="button" id="btnContinue" value="Continue">\
+	    </form> ';
+	  return htmlText;
+	};
+
+	/**
+	 * Handles the onclick for the button by transition state
+	 * @returns {void}
+	*/
+	NextPlayerView.prototype.handleButtonClick = function() {
+	  //transition to turn itself
+	  this.game.updateState("goToTurn");
+	};
+
+	/**
+	 * removes the game over view
+	 * @returns {void}
+	*/
+	NextPlayerView.prototype.removeView = function() {
+	  document.getElementById('div1').innerHTML = '';
+	};
+
+	NextPlayerView.prototype.drawMessage = function() {
 	};
 
 
-	module.exports = ManualTurn;
-
+	module.exports = NextPlayerView;
 
 /***/ },
 /* 4 */
-/***/ function(module, exports, __webpack_require__) {
+/***/ function(module, exports) {
 
-	Component = __webpack_require__(5);
-	    inherits = __webpack_require__(6).inherits;
+	// constants.js
 
-	var machina = __webpack_require__(10);
+	var ttConstants = new Object();
 
-	var Turn = machina.Fsm.extend({
-	        initialize: function( ) {
-	        },
+	// CANVAS
+	// Constants defining the canvas properties
+	ttConstants.canvasWidth = 1500;
+	ttConstants.canvasHeight = 1500;
 
-	        initialState: 'uninitialized',
+	ttConstants.leftBuffer = 50;
+	ttConstants.upperBuffer = 50;
 
-	        namespace: 'test',
+	// BOARD
+	// Constants for defining the board on top of the canvas
+	ttConstants.boardWidth = 1100;
+	ttConstants.boardHeight = 1100;
 
-	        states: {
-	            setup: {
-	                '_onEnter': function() {
-	                }
-	            }
-	        }
-	});
+	ttConstants.boardStartX = ttConstants.leftBuffer;
+	ttConstants.boardStartY = ttConstants.upperBuffer;
 
-	module.exports = Turn;
+	// COLORS
+	// Constants defining basic colors.
+	ttConstants.blackColor = 0x000000;
+	ttConstants.whiteColor = 0xFFFFFF;
+	ttConstants.redColor = 0xFF0000;
+	ttConstants.blueColor = 0x0000FF;
+	ttConstants.greenColor = 0x008000;
+
+	// MOVE TYPES
+	// Constants defining how moving occurs
+
+	// user selects token, then new position
+	ttConstants.moveTypeManual = 1;
+
+	// user rolls dice, player is moved 
+	ttConstants.moveTypeDiceRoll = 2;
+
+	// user selects a position and a token is placed there
+	ttConstants.moveTypePlaceToken = 3;
+
+
+	ttConstants.moveTypeCustom = 4;
+
+	// MOVE EVALUATION TYPES
+
+	// tile.performLandingAction() is called 
+	ttConstants.moveEvaluationTypeLandingAction = 1;
+
+	// game.executeMove() is called
+	// after game.isValidMove() verfies move is legal
+	ttConstants.moveEvaluationTypeGameEvaluator = 2;
+
+
+	module.exports = ttConstants;
 
 
 /***/ },
@@ -998,6 +1025,693 @@
 /* 10 */
 /***/ function(module, exports, __webpack_require__) {
 
+	var inherits = __webpack_require__(6).inherits;
+	var Board = __webpack_require__(11);
+
+	/**
+	 * The ArrayBoard class
+	 * @constructor
+	 * @extends {Board}
+	 * @param {int} width - Number of tiles across the board
+	 * @param {int} height - Number of tiles down the board
+	*/
+	function ArrayBoard(width, height) { 
+	  Board.call(this);
+	  var numberOfSpaces = (width * 2) + (height * 2) - 2;
+	  
+	  this.tiles = Array(numberOfSpaces);
+
+	  this.width = width;
+	  this.height = height;
+	};
+
+	inherits(ArrayBoard, Board);
+
+	/**
+	 * Method to get the tile at the given index
+	 * @param {int} index - The index of the tile wanted
+	 * @returns {Tile}
+	*/
+	ArrayBoard.prototype.getTile = function(index) { 
+	  return this.tiles[index]
+	};
+
+	/**
+	 * Method to get the index of a Tile in the board
+	 * @param {Tile} tile - A board tile
+	 * @returns {int}
+	*/
+	ArrayBoard.prototype.getTilePosition = function(tile) { 
+
+	  for (var i = 0; i < this.tiles.length; i++) {
+	    if (this.tiles[i] == tile) { 
+	      return i;
+	    } 
+	  }
+	  
+	  return null;
+	};
+
+	module.exports = ArrayBoard;
+
+
+/***/ },
+/* 11 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var Component = __webpack_require__(5);
+	var inherits = __webpack_require__(6).inherits;
+
+	/**
+	 * The Board class
+	 * @constructor
+	 * @extends {Component}
+	*/
+	function Board() {
+	  Component.call(this);
+	  this.tiles = [];
+	  this.tokens = [];
+	}
+
+	inherits(Board, Component);
+
+	Board.prototype.getTile = function(idx) { 
+	  return this.tiles[idx];
+	};
+
+	// TODO, maybe pass the token or the token class to this method?
+	Board.prototype.buildTokenForTile = function(token, tile) { 
+	  tile.addOccupier(token);
+	  this.tokens.push(token);
+	};
+
+	module.exports = Board;
+
+
+/***/ },
+/* 12 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var Component = __webpack_require__(5);
+	var inherits = __webpack_require__(6).inherits;
+
+	/**
+	 * The Card class
+	 * @constructor
+	 * @extends {Component}
+	 * @param {string} text - The card's message
+	 * @param {function} action - An action to be taken when the card is drawn. action should take the game state as a parameter
+	*/
+	function Card(text, action) {
+	  Component.call(this);
+	  this.text = text;
+	  this.action = action;
+	};
+
+	inherits(Card, Component);
+
+	module.exports = Card;
+
+/***/ },
+/* 13 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var Utils = __webpack_require__(14);
+	var Component = __webpack_require__(5);
+	var inherits = __webpack_require__(6).inherits;
+
+	/**
+	 * The Deck class
+	 * Should probably be subclassed to create the cards for the deck in the constructor
+	 * @constructor
+	 * @extends {Component}
+	*/
+	function Deck() {
+	  Component.call(this);
+	  this.cards = [];
+	  this.currentPosition = 0;
+	};
+
+	inherits(Deck, Component);
+
+	/**
+	 * Shuffle the deck in place
+	 * @returns {void}
+	*/
+	Deck.prototype.shuffle = function() {
+	  Utils.shuffle(this.cards);
+	};
+
+	// draw card currently assumes that the card goes back on the bottom of the deck
+	// doesn't quite work for get out of jail, but will for everything else.
+	// In the future we could build two types of decks or two different draw methods
+	/**
+	 * @param {Boolean} isReplaced - Whether or not the card should be replaced at the bottom of the deck
+	 * @returns {Card} The card drawn from the deck
+	*/
+	Deck.prototype.drawCard = function(isReplaced) {
+	  var card = this.cards[this.currentPosition];
+	  if (isReplaced) {
+	    this.currentPosition++;
+
+	    // wrap index of the card around
+	    this.currentPosition = this.currentPosition % this.cards.length;
+	  } else {
+	    this.cards.splice(this.currentPosition, 1);
+	  }
+	  
+	  return card;
+	};
+
+	module.exports = Deck;
+
+/***/ },
+/* 14 */
+/***/ function(module, exports) {
+
+	var Utils = {
+	  // http://stackoverflow.com/questions/6274339/how-can-i-shuffle-an-array-in-javascript
+	  shuffle: function(o) {
+	    for(var j, x, i = o.length; i; j = Math.floor(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x);
+	    return o;
+	  },
+	};
+
+	module.exports = Utils;
+
+/***/ },
+/* 15 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var Tile = __webpack_require__(16),
+	    inherits = __webpack_require__(6).inherits;
+
+	/**
+	 * The EdgeTile class
+	 * @constructor
+	 * @param {VertexTile} start - Vertex on one side of the edge
+	 * @param {VertexTile} end - Vertex on the other side of the edge
+	 * @extends {Tile}
+	*/
+	function EdgeTile(start, end) {
+	  Tile.call(this);
+	  this.startVertex = start;
+	  this.endVertex = end;
+	}
+
+	inherits(EdgeTile, Tile);
+
+	module.exports = EdgeTile;
+
+/***/ },
+/* 16 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var Component = __webpack_require__(5);
+	var inherits = __webpack_require__(6).inherits;
+
+	/**
+	 * The Tile class
+	 * @constructor
+	 * @extends {Component}
+	 * @param {Dictionary} - name {string}, color {hex}, occupier {Token}
+	*/
+	// TODO refactor parameters
+	function Tile(opts) {
+	  Component.call(this);
+	  this.name = opts.name;
+	  this.color = opts.color;
+	  this.occupier = opts.occupier; // todo: make this an array of tokens
+	};
+
+	inherits(Tile, Component);
+
+	/**
+	 * Remove all tokens from the Tile
+	 * @returns {void}
+	*/
+	Tile.prototype.clearOccupiers = function() { 
+	  this.occupier = null;
+	};
+
+	/**
+	 * Add a Token to the Tile
+	 * @param {Token} occupier - token to be added
+	 * @returns {void}
+	*/
+	Tile.prototype.addOccupier = function(occupier) { 
+	  this.occupier = occupier;
+	};
+
+	/**
+	 * Remove a Token from the Tile
+	 * @param {Token} occupier - token to be remvoed
+	 * @returns {void}
+	*/
+	Tile.prototype.removeOccupier = function(occupier) { 
+	  this.occupier = null;
+	};
+
+	module.exports = Tile;
+
+
+/***/ },
+/* 17 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var c = __webpack_require__(4);
+	var ManualTurn = __webpack_require__(18);
+	var Component = __webpack_require__(5);
+	var inherits = __webpack_require__(6).inherits;
+
+	/**
+	 * The Game class
+	 * @constructor
+	 * @extends {Component}
+	 * @param {Board} board - The game board
+	*/
+	function Game(board) {
+	  Component.call(this);
+	  this.board = board;
+	  this.dice = [];
+	  this.players = [];
+	  this.turnMap = null;
+	  this.moveType = c.moveTypeDice; // manual movement or dicerolls
+	  this.proposedMove = {}; // for c.moveTypeManual
+	  this.moveEvaluationType = c.moveEvaluationTypeLandingAction;
+	  this.possibleNumPlayers = [2, 3, 4, 5];
+	  this.showNextPlayerScreen = true;
+	  this.playerColors = [0xFF0000, 0x000000, 0x00FF00, 0x0000FF, 0xFF00FF];
+	};
+
+	inherits(Game, Component);
+
+	/**
+	 * Method to set turnMap of the game once it is created
+	 * This is required!
+	 * @param {Turn} turnMap - A turn object to be used by the game
+	*/
+	Game.prototype.setTurnMap = function(turnMap) {
+	  this.turnMap = turnMap;
+	};
+
+	/**
+	 * Method to call from the view to update the game state
+	 * @param {string} message - A string saying which state to transition to
+	*/
+	Game.prototype.updateState = function(message) {
+	  this.turnMap.updateState(message, this);
+	};
+
+	/**
+	 * Set the move type for this game
+	 * @param {string} moveType - The move type. See ttConstants
+	*/
+	Game.prototype.setMoveType = function(moveType) { 
+	  this.moveType = moveType;
+	  if (moveType == c.moveTypeManual) { 
+	    this.proposedMove = {};
+	  } 
+	};
+
+
+	/**
+	 * Set the players for this game
+	 * @param {Player|Array} players - The players in the game
+	*/
+	Game.prototype.setPlayers = function(players) { 
+	  this.players = players;
+	};
+
+
+	/**
+	 * Callback method from the view when a token is clicked
+	 * To be overridden by the subclass
+	 * @abstract
+	 * @parram {Token} token - The token object that was clicked
+	*/
+	Game.prototype.tokenClicked = function(token) {
+	  throw new Error('must be implemented by subclass!');
+	};
+
+	/**
+	 * Callback method from the view when a tile is clicked
+	 * To be overridden by the subclass
+	 * @abstract
+	 * @param {Tile} tile - the tile object that was clicked in the view
+	*/
+	Game.prototype.tileClicked = function(tile) {
+	  throw new Error('must be implemented by subclass!');
+	};
+
+	/**
+	 * Check the Game State to see if a player has won the game
+	 * @abstract
+	 * @return {boolean}
+	*/
+	Game.prototype.isGameOver = function() {
+	  // TODO - check this method every transition in the state machine
+	  throw new Error('must be implemented by subclass!');
+	};
+
+	/**
+	 * Set the current player to a random player
+	 * Used to decide who goes first at the beginning of the game
+	*/
+	Game.prototype.randomizeCurrentPlayer = function() {
+	  this.currentPlayer = Math.floor(Math.random() * this.players.length);
+	};
+
+	/**
+	 * Roll the dice
+	 * Dice are represented as an array of ints stored in the state
+	 * @param {int} numberOfDice - The number of dice to roll
+	 * @param {int} sides - How many sides should be on the dice (defaults to 6)
+	*/
+	Game.prototype.rollDice = function(numberOfDice, sides) {
+	  if (!sides) {
+	    sides = 6;
+	  }
+	  this.dice = [];
+	  var message = "You rolled a ";
+	  for (var i = 0; i < numberOfDice; i++) {
+	    var roll = Math.floor(Math.random() * sides) + 1;
+	    this.dice.push(roll);
+	    message = message.concat(roll + ", ");
+	  }
+
+	  this.sendMessage(message);
+	};
+
+	/**
+	 * Checks to see if the first two dice are the same value
+	 * @returns {Boolean}
+	*/
+	Game.prototype.isDoubles = function(dice) {
+	  return dice.length > 1 && dice[0] === dice[1];
+	};
+
+	/**
+	 * Returns the current player
+	 * @returns {Player}
+	*/
+	Game.prototype.getCurrentPlayer = function() {
+	  return this.players[this.currentPlayer];
+	};
+
+	/**
+	 * Sets the last moved token for later reference
+	 * @param {Token} token - Last moved token
+	 * @returns {void}
+	*/
+	Game.prototype.submitMove = function(token) { 
+	  this.lastMovedToken = token;
+	};
+
+	/**
+	 * Switch to the next player
+	 * Override to provide more logic on determining the next player
+	 * @returns {void}
+	*/
+	Game.prototype.nextPlayer = function() { 
+	  this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
+	};
+
+	/**
+	 * Set the destination for a proposed move
+	 * @param {Tile} tile - the tile to move to
+	 * @returns {void}
+	*/
+	Game.prototype.setProposedMoveDestination = function(tile) { 
+	  this.proposedMove.destination = tile;
+	};
+
+	/**
+	 * Set the token for a proposed move
+	 * @param {Token} token - the token to move
+	 * @returns {void}
+	*/
+	Game.prototype.setProposedMoveToken = function(token) { 
+	  this.proposedMove.token = token;
+	};
+
+	/**
+	 * A proposed move exists and it is valid
+	 * @returns {boolean}
+	*/
+	Game.prototype.hasValidMove = function() { 
+	  
+	  if (this.moveType == c.moveTypeManual &&  (!this.proposedMove.token || !this.proposedMove.destination)) {
+	    return false;
+	  }
+	  else if (this.moveType == c.moveTypePlaceToken && !this.proposedMove.destination) {
+	    return false;
+	  } 
+
+	  var token = this.proposedMove.token;
+	  var tile = token ? token.tile : null;
+	  var destination = this.proposedMove.destination;
+
+	  return this.isValidMove(token, 
+	                          tile, 
+	                          destination);
+	}; 
+
+	/**
+	 * Determines if it is valid to move the given token to the new tile
+	 * @param {Token} token - token to place or move
+	 * @param {Tile} oldTile - the previous token location (could be null if token not on board yet)
+	 * @param {Tile} newTile - the new token location
+	 * @abstract 
+	 * @returns {boolean}
+	*/
+	Game.prototype.isValidMove = function(token, oldTile, newTile) { 
+	  console.warn("isValidMove should be implemented by the subclass");
+	  return true;
+	};
+
+	/**
+	 * Evaluates the current state of the game and determines if a player won
+	 * @param {Player} player - the current player
+	 * @abstract
+	 * @returns {boolean}
+	*/
+	Game.prototype.playerDidWin = function(player) {
+	  console.warn("playerDidWin should be implemented by the subclass");
+	  return false;
+	};
+
+	/** 
+	 * Execute the proposed move made by the player
+	 * @param {Player} player - the current player
+	 * @abstract
+	 * @returns {void}
+	*/
+	Game.prototype.executeMove = function(player) {
+	  throw new Error('executeMove must be implemented by the subclass!');
+	};
+
+	/**
+	 * Event for when a token is clicked on
+	 * @param {Token} token - the token that was clicked
+	 * @returns {void}
+	*/
+	Game.prototype.tokenClicked = function(token) { 
+	  if (this.moveType == c.moveTypeManual &&
+	      this.turnMap.getCurrentState() == "waitingForMove") { 
+	    this.setProposedMoveToken(token);
+	  }
+	};
+
+	/**
+	 * Event for when a tile is clicked on
+	 * @param {Tile} tile - the tile that was clicked
+	 * @returns {void}
+	*/
+	Game.prototype.tileClicked = function(tile) { 
+	  /* make sure we're in the right state, 
+	   a token has been pressed, 
+	   and we're not a tile with a token on it (if we have > 0
+	   children, then this click was meant for a token... */
+	  if (this.moveType == c.moveTypeManual && 
+	      this.turnMap.getCurrentState() == "waitingForMove" && 
+	      this.proposedMove.token && 
+	      this.proposedMove.token.tile != tile) { 
+
+	    this.setProposedMoveDestination(tile);
+	    this.turnMap.updateState("makeMove");
+
+	  } else if (this.moveType == c.moveTypePlaceToken &&
+	      this.turnMap.getCurrentState() == "waitingForMove") {
+
+	    this.setProposedMoveDestination(tile);
+	    this.turnMap.updateState("makeMove");
+	  }
+	};
+
+
+	module.exports = Game;
+
+/***/ },
+/* 18 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var Turn = __webpack_require__(19);
+	var inherits = __webpack_require__(6).inherits;
+
+	function ManualTurn(game, startView, view, gameOverView, nextPlayerView) { 
+	  
+	  this.game = game;
+	  this.startView = startView;
+	  this.view = view;
+	  this.nextPlayerView = nextPlayerView;
+	  this.gameOverView = gameOverView;
+
+	  this.turnMap = new Turn({ 
+	    initialize: function( options ) {},
+	    
+	    game : game, 
+
+	    initialState: "uninitialized",
+	    
+	    namespace: "test",
+
+	    states: { 
+	      
+	      // 1
+	      uninitialized: { 
+	        start : function() { 
+	          this.transition("startScreen");
+	          
+	        } 
+	      },
+
+	      // 1a
+	      startScreen:{
+	        _onEnter: function() { 
+	          startView.drawView();
+	        },
+	        play : function() { 
+	          startView.removeView();
+	          if(game.showNextPlayerScreen){
+	            this.transition("nextPlayerScreen");
+	          } else {
+	            this.transition("waitingForMove");
+	          }
+	        } 
+	      },
+
+	      // 1b
+	      nextPlayerScreen:{
+	        _onEnter: function() { 
+	          nextPlayerView.drawView();
+	        },
+	        goToTurn : function() { 
+	          nextPlayerView.removeView();
+	          this.transition("waitingForMove");
+	        } 
+	      },
+
+	      // 2 
+	      waitingForMove: { 
+	        _onEnter: function() { 
+	          view.drawView();
+	          console.log(this.game.getCurrentPlayer().name + ": Make your move.");
+	        },
+	        
+	        makeMove : function() { 
+	          if (game.hasValidMove()) { 
+	            game.executeMove();
+	            this.transition("postTurn");
+	          } else { 
+	            console.log("Invalid move. Try again.");
+	          } 
+	        } 
+	      },
+
+	      // 3
+	      postTurn: { 
+	        _onEnter : function() { 
+	          if (this.game.playerDidWin(game.getCurrentPlayer())) { 
+	            view.removeView();
+	            this.transition("gameOver");
+	          } else { 
+	            this.game.nextPlayer();
+	            if(game.showNextPlayerScreen){
+	              view.hideView();
+	              this.transition("nextPlayerScreen");
+	            } else {
+	              this.transition("waitingForMove");
+	            }
+	          }
+	        } 
+	      },
+
+	      // 4
+	      gameOver : { 
+	        _onEnter : function() { 
+	          gameOverView.drawView();
+	          console.log(this.game.getCurrentPlayer().name + " has won.");
+	        }
+	      } 
+	    } 
+	  });  
+	} 
+
+
+	/**
+	 * executes the command in a state
+	 * @param {string} command - the command in the state to exercise
+	 * @returns {void}
+	*/
+	ManualTurn.prototype.updateState = function(command) {
+	    this.turnMap.handle(command);
+	};
+
+	/**
+	 * gets the current state
+	 * @returns {string}
+	*/
+	ManualTurn.prototype.getCurrentState = function() {
+	    return this.turnMap.compositeState();
+	};
+
+
+	module.exports = ManualTurn;
+
+
+/***/ },
+/* 19 */
+/***/ function(module, exports, __webpack_require__) {
+
+	Component = __webpack_require__(5);
+	    inherits = __webpack_require__(6).inherits;
+
+	var machina = __webpack_require__(20);
+
+	var Turn = machina.Fsm.extend({
+	        initialize: function( ) {
+	        },
+
+	        initialState: 'uninitialized',
+
+	        namespace: 'test',
+
+	        states: {
+	            setup: {
+	                '_onEnter': function() {
+	                }
+	            }
+	        }
+	});
+
+	module.exports = Turn;
+
+
+/***/ },
+/* 20 */
+/***/ function(module, exports, __webpack_require__) {
+
 	var __WEBPACK_AMD_DEFINE_ARRAY__, __WEBPACK_AMD_DEFINE_RESULT__;/**
 	 * machina - A library for creating powerful and flexible finite state machines. Loosely inspired by Erlang/OTP's gen_fsm behavior.
 	 * Author: Jim Cowart (http://ifandelse.com)
@@ -1010,7 +1724,7 @@
 		/* istanbul ignore if  */
 		if ( true ) {
 			// AMD. Register as an anonymous module.
-			!(__WEBPACK_AMD_DEFINE_ARRAY__ = [ __webpack_require__(11) ], __WEBPACK_AMD_DEFINE_RESULT__ = function( _ ) {
+			!(__WEBPACK_AMD_DEFINE_ARRAY__ = [ __webpack_require__(21) ], __WEBPACK_AMD_DEFINE_RESULT__ = function( _ ) {
 				return factory( _, root );
 			}.apply(exports, __WEBPACK_AMD_DEFINE_ARRAY__), __WEBPACK_AMD_DEFINE_RESULT__ !== undefined && (module.exports = __WEBPACK_AMD_DEFINE_RESULT__));
 		/* istanbul ignore else  */
@@ -1597,7 +2311,7 @@
 
 
 /***/ },
-/* 11 */
+/* 21 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var __WEBPACK_AMD_DEFINE_RESULT__;/* WEBPACK VAR INJECTION */(function(module, global) {/**
@@ -13952,10 +14666,10 @@
 	  }
 	}.call(this));
 
-	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(12)(module), (function() { return this; }())))
+	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(22)(module), (function() { return this; }())))
 
 /***/ },
-/* 12 */
+/* 22 */
 /***/ function(module, exports) {
 
 	module.exports = function(module) {
@@ -13971,596 +14685,75 @@
 
 
 /***/ },
-/* 13 */
+/* 23 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var inherits = __webpack_require__(6).inherits;
-	var Board = __webpack_require__(14);
-
-	/**
-	 * The ArrayBoard class
-	 * @constructor
-	 * @extends {Board}
-	 * @param {int} width - Number of tiles across the board
-	 * @param {int} height - Number of tiles down the board
-	*/
-	function ArrayBoard(width, height) { 
-	  Board.call(this);
-	  var numberOfSpaces = (width * 2) + (height * 2) - 2;
-	  
-	  this.tiles = Array(numberOfSpaces);
-
-	  this.width = width;
-	  this.height = height;
-	};
-
-	inherits(ArrayBoard, Board);
-
-	/**
-	 * Method to get the tile at the given index
-	 * @param {int} index - The index of the tile wanted
-	 * @returns {Tile}
-	*/
-	ArrayBoard.prototype.getTile = function(index) { 
-	  return this.tiles[index]
-	};
-
-	/**
-	 * Method to get the index of a Tile in the board
-	 * @param {Tile} tile - A board tile
-	 * @returns {int}
-	*/
-	ArrayBoard.prototype.getTilePosition = function(tile) { 
-
-	  for (var i = 0; i < this.tiles.length; i++) {
-	    if (this.tiles[i] == tile) { 
-	      return i;
-	    } 
-	  }
-	  
-	  return null;
-	};
-
-	module.exports = ArrayBoard;
-
-
-/***/ },
-/* 14 */
-/***/ function(module, exports, __webpack_require__) {
-
+	var c = __webpack_require__(4);
 	var Component = __webpack_require__(5);
 	var inherits = __webpack_require__(6).inherits;
 
 	/**
-	 * The Board class
+	 * The GameOverView class
 	 * @constructor
+	 * @param {Game} game - the game state
 	 * @extends {Component}
 	*/
-	function Board() {
+	function GameOverView(game) {
 	  Component.call(this);
-	  this.tiles = [];
-	  this.tokens = [];
-	}
+	  this.game = game;
+	};
+	inherits(GameOverView, Component);
 
-	inherits(Board, Component);
-
-	Board.prototype.getTile = function(idx) { 
-	  return this.tiles[idx];
+	/**
+	 * draws the game over view
+	 * @returns {void}
+	*/
+	GameOverView.prototype.drawView = function() {
+	  this.setupPage();
 	};
 
-	// TODO, maybe pass the token or the token class to this method?
-	Board.prototype.buildTokenForTile = function(token, tile) { 
-	  tile.addOccupier(token);
-	  this.tokens.push(token);
+	/**
+	 * sets up the pageto take in the provided HTML text string
+	 * @returns {void}
+	*/
+	GameOverView.prototype.setupPage = function() {
+	  document.getElementById('div1').innerHTML = this.getHTMLText();
+	  var context = this;
 	};
 
-	module.exports = Board;
+	/**
+	 * provides the htmlText to be place in a div on the page
+	 * @returns {string} htmlText
+	*/
+	GameOverView.prototype.getHTMLText= function() {
+	  var htmlText = ' <form id="form1">'+
+	    this.game.getCurrentPlayer().name + ' has won!\
+	    </form> ';
 
+	  return htmlText;
+
+	};
+
+	/**
+	 * removes the game over view
+	 * @returns {void}
+	*/
+	GameOverView.prototype.removeView = function() {
+	  document.getElementById('div1').innerHTML = '';
+	};
+
+	GameOverView.prototype.drawMessage = function() {
+	};
+
+
+	module.exports = GameOverView;
 
 /***/ },
-/* 15 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var Component = __webpack_require__(5);
-	var inherits = __webpack_require__(6).inherits;
-
-	/**
-	 * The Card class
-	 * @constructor
-	 * @extends {Component}
-	 * @param {string} text - The card's message
-	 * @param {function} action - An action to be taken when the card is drawn. action should take the game state as a parameter
-	*/
-	function Card(text, action) {
-	  Component.call(this);
-	  this.text = text;
-	  this.action = action;
-	};
-
-	inherits(Card, Component);
-
-	module.exports = Card;
-
-/***/ },
-/* 16 */
-/***/ function(module, exports) {
-
-	// constants.js
-
-	var ttConstants = new Object();
-
-	// CANVAS
-	// Constants defining the canvas properties
-	ttConstants.canvasWidth = 1200;
-	ttConstants.canvasHeight = 1500;
-
-	ttConstants.leftBuffer = 50;
-	ttConstants.upperBuffer = 50;
-
-	// BOARD
-	// Constants for defining the board on top of the canvas
-	ttConstants.boardWidth = 1100;
-	ttConstants.boardHeight = 1100;
-
-	ttConstants.boardStartX = ttConstants.leftBuffer;
-	ttConstants.boardStartY = ttConstants.upperBuffer;
-
-	// COLORS
-	// Constants defining basic colors.
-	ttConstants.blackColor = 0x000000;
-	ttConstants.whiteColor = 0xFFFFFF;
-	ttConstants.redColor = 0xFF0000;
-	ttConstants.blueColor = 0x0000FF;
-	ttConstants.greenColor = 0x008000;
-
-	// MOVE TYPES
-	// Constants defining how moving occurs
-
-	// user selects token, then new position
-	ttConstants.moveTypeManual = 1;
-
-	// user rolls dice, player is moved 
-	ttConstants.moveTypeDiceRoll = 2;
-
-	// user selects a position and a token is placed there
-	ttConstants.moveTypePlaceToken = 3;
-
-	// MOVE EVALUATION TYPES
-
-	// tile.performLandingAction() is called 
-	ttConstants.moveEvaluationTypeLandingAction = 1;
-
-	// game.executeMove() is called
-	// after game.isValidMove() verfies move is legal
-	ttConstants.moveEvaluationTypeGameEvaluator = 2;
-
-
-	module.exports = ttConstants;
-
-
-/***/ },
-/* 17 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var Utils = __webpack_require__(18);
-	var Component = __webpack_require__(5);
-	var inherits = __webpack_require__(6).inherits;
-
-	/**
-	 * The Deck class
-	 * Should probably be subclassed to create the cards for the deck in the constructor
-	 * @constructor
-	 * @extends {Component}
-	*/
-	function Deck() {
-	  Component.call(this);
-	  this.cards = [];
-	  this.currentPosition = 0;
-	};
-
-	inherits(Deck, Component);
-
-	/**
-	 * Shuffle the deck in place
-	 * @returns {void}
-	*/
-	Deck.prototype.shuffle = function() {
-	  Utils.shuffle(this.cards);
-	};
-
-	// draw card currently assumes that the card goes back on the bottom of the deck
-	// doesn't quite work for get out of jail, but will for everything else.
-	// In the future we could build two types of decks or two different draw methods
-	/**
-	 * @param {Boolean} isReplaced - Whether or not the card should be replaced at the bottom of the deck
-	 * @returns {Card} The card drawn from the deck
-	*/
-	Deck.prototype.drawCard = function(isReplaced) {
-	  var card = this.cards[this.currentPosition];
-	  if (isReplaced) {
-	    this.currentPosition++;
-
-	    // wrap index of the card around
-	    this.currentPosition = this.currentPosition % this.cards.length;
-	  } else {
-	    this.cards.splice(this.currentPosition, 1);
-	  }
-	  
-	  return card;
-	};
-
-	module.exports = Deck;
-
-/***/ },
-/* 18 */
-/***/ function(module, exports) {
-
-	var Utils = {
-	  // http://stackoverflow.com/questions/6274339/how-can-i-shuffle-an-array-in-javascript
-	  shuffle: function(o) {
-	    for(var j, x, i = o.length; i; j = Math.floor(Math.random() * i), x = o[--i], o[i] = o[j], o[j] = x);
-	    return o;
-	  },
-	};
-
-	module.exports = Utils;
-
-/***/ },
-/* 19 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var Tile = __webpack_require__(20),
-	    inherits = __webpack_require__(6).inherits;
-
-	/**
-	 * The EdgeTile class
-	 * @constructor
-	 * @param {VertexTile} start - Vertex on one side of the edge
-	 * @param {VertexTile} end - Vertex on the other side of the edge
-	 * @extends {Tile}
-	*/
-	function EdgeTile(start, end) {
-	  Tile.call(this);
-	  this.startVertex = start;
-	  this.endVertex = end;
-	}
-
-	inherits(EdgeTile, Tile);
-
-	module.exports = EdgeTile;
-
-/***/ },
-/* 20 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var Component = __webpack_require__(5);
-	var inherits = __webpack_require__(6).inherits;
-
-	/**
-	 * The Tile class
-	 * @constructor
-	 * @extends {Component}
-	 * @param {Dictionary} - name {string}, color {hex}, occupier {Token}
-	*/
-	// TODO refactor parameters
-	function Tile(opts) {
-	  Component.call(this);
-	  this.name = opts.name;
-	  this.color = opts.color;
-	  this.occupier = opts.occupier; // todo: make this an array of tokens
-	};
-
-	inherits(Tile, Component);
-
-	/**
-	 * Remove all tokens from the Tile
-	 * @returns {void}
-	*/
-	Tile.prototype.clearOccupiers = function() { 
-	  this.occupier = null;
-	};
-
-	/**
-	 * Add a Token to the Tile
-	 * @param {Token} occupier - token to be added
-	 * @returns {void}
-	*/
-	Tile.prototype.addOccupier = function(occupier) { 
-	  this.occupier = occupier;
-	};
-
-	/**
-	 * Remove a Token from the Tile
-	 * @param {Token} occupier - token to be remvoed
-	 * @returns {void}
-	*/
-	Tile.prototype.removeOccupier = function(occupier) { 
-	  this.occupier = null;
-	};
-
-	module.exports = Tile;
-
-
-/***/ },
-/* 21 */
-/***/ function(module, exports, __webpack_require__) {
-
-	var c = __webpack_require__(16);
-	var ManualTurn = __webpack_require__(3);
-	var Component = __webpack_require__(5);
-	var inherits = __webpack_require__(6).inherits;
-
-	/**
-	 * The Game class
-	 * @constructor
-	 * @extends {Component}
-	 * @param {Player|Array} players - A list of players
-	 * @param {Board} board - The game board
-	*/
-	function Game(players, board) {
-	  Component.call(this);
-	  this.players = players,
-	  this.board = board;
-	  this.dice = [];
-	  this.randomizeCurrentPlayer();
-	  this.turnMap = null;
-	  this.moveType = c.moveTypeDice; // manual movement or dicerolls
-	  this.proposedMove = {}; // for c.moveTypeManual
-	  this.moveEvaluationType = c.moveEvaluationTypeLandingAction;
-	};
-
-	inherits(Game, Component);
-
-	/**
-	 * Method to set turnMap of the game once it is created
-	 * This is required!
-	 * @param {Turn} turnMap - A turn object to be used by the game
-	*/
-	Game.prototype.setTurn = function(turnMap) {
-	  this.turnMap = turnMap;
-	};
-
-	/**
-	 * Method to call from the view to update the game state
-	 * @param {string} message - A string saying which state to transition to
-	*/
-	Game.prototype.updateState = function(message) {
-	  this.turnMap.updateState(message, this);
-	};
-
-	/**
-	 * Set the game's state machine
-	 * @param {TurnMap} turnMap - the game's state machine
-	*/
-	Game.prototype.setTurnMap = function(turnMap) { 
-	  this.turnMap = turnMap;
-	};
-
-	/**
-	 * Set the move type for this game
-	 * @param {string} moveType - The move type. See ttConstants
-	*/
-	Game.prototype.setMoveType = function(moveType) { 
-	  this.moveType = moveType;
-	  if (moveType == c.moveTypeManual) { 
-	    this.proposedMove = {};
-	  } 
-	};
-
-	/**
-	 * Callback method from the view when a token is clicked
-	 * To be overridden by the subclass
-	 * @abstract
-	 * @parram {Token} token - The token object that was clicked
-	*/
-	Game.prototype.tokenClicked = function(token) {
-	  throw new Error('must be implemented by subclass!');
-	};
-
-	/**
-	 * Callback method from the view when a tile is clicked
-	 * To be overridden by the subclass
-	 * @abstract
-	 * @param {Tile} tile - the tile object that was clicked in the view
-	*/
-	Game.prototype.tileClicked = function(tile) {
-	  throw new Error('must be implemented by subclass!');
-	};
-
-	/**
-	 * Check the Game State to see if a player has won the game
-	 * @abstract
-	 * @return {boolean}
-	*/
-	Game.prototype.isGameOver = function() {
-	  // TODO - check this method every transition in the state machine
-	  throw new Error('must be implemented by subclass!');
-	};
-
-	/**
-	 * Set the current player to a random player
-	 * Used to decide who goes first at the beginning of the game
-	*/
-	Game.prototype.randomizeCurrentPlayer = function() {
-	  this.currentPlayer = Math.floor(Math.random() * this.players.length);
-	};
-
-	/**
-	 * Roll the dice
-	 * Dice are represented as an array of ints stored in the state
-	 * @param {int} numberOfDice - The number of dice to roll
-	 * @param {int} sides - How many sides should be on the dice (defaults to 6)
-	*/
-	Game.prototype.rollDice = function(numberOfDice, sides) {
-	  if (!sides) {
-	    sides = 6;
-	  }
-	  this.dice = [];
-	  var message = "You rolled a ";
-	  for (var i = 0; i < numberOfDice; i++) {
-	    var roll = Math.floor(Math.random() * sides) + 1;
-	    this.dice.push(roll);
-	    message = message.concat(roll + ", ");
-	  }
-
-	  this.sendMessage(message);
-	};
-
-	/**
-	 * Checks to see if the first two dice are the same value
-	 * @returns {Boolean}
-	*/
-	Game.prototype.isDoubles = function(dice) {
-	  return dice.length > 1 && dice[0] === dice[1];
-	};
-
-	/**
-	 * Returns the current player
-	 * @returns {Player}
-	*/
-	Game.prototype.getCurrentPlayer = function() {
-	  return this.players[this.currentPlayer];
-	};
-
-	/**
-	 * Sets the last moved token for later reference
-	 * @param {Token} token - Last moved token
-	 * @returns {void}
-	*/
-	Game.prototype.submitMove = function(token) { 
-	  this.lastMovedToken = token;
-	};
-
-	/**
-	 * Switch to the next player
-	 * Override to provide more logic on determining the next player
-	 * @returns {void}
-	*/
-	Game.prototype.nextPlayer = function() { 
-	  this.currentPlayer = (this.currentPlayer + 1) % this.players.length;
-	};
-
-	/**
-	 * Set the destination for a proposed move
-	 * @param {Tile} tile - the tile to move to
-	 * @returns {void}
-	*/
-	Game.prototype.setProposedMoveDestination = function(tile) { 
-	  this.proposedMove.destination = tile;
-	};
-
-	/**
-	 * Set the token for a proposed move
-	 * @param {Token} token - the token to move
-	 * @returns {void}
-	*/
-	Game.prototype.setProposedMoveToken = function(token) { 
-	  this.proposedMove.token = token;
-	};
-
-	/**
-	 * A proposed move exists and it is valid
-	 * @returns {boolean}
-	*/
-	Game.prototype.hasValidMove = function() { 
-	  
-	  if (this.moveType == c.moveTypeManual &&  (!this.proposedMove.token || !this.proposedMove.destination)) {
-	    return false;
-	  }
-	  else if (this.moveType == c.moveTypePlaceToken && !this.proposedMove.destination) {
-	    return false;
-	  } 
-
-	  var token = this.proposedMove.token;
-	  var tile = token ? token.tile : null;
-	  var destination = this.proposedMove.destination;
-
-	  return this.isValidMove(token, 
-	                          tile, 
-	                          destination);
-	}; 
-
-	/**
-	 * Determines if it is valid to move the given token to the new tile
-	 * @param {Token} token - token to place or move
-	 * @param {Tile} oldTile - the previous token location (could be null if token not on board yet)
-	 * @param {Tile} newTile - the new token location
-	 * @abstract 
-	 * @returns {boolean}
-	*/
-	Game.prototype.isValidMove = function(token, oldTile, newTile) { 
-	  console.warn("isValidMove should be implemented by the subclass");
-	  return true;
-	};
-
-	/**
-	 * Evaluates the current state of the game and determines if a player won
-	 * @param {Player} player - the current player
-	 * @abstract
-	 * @returns {boolean}
-	*/
-	Game.prototype.playerDidWin = function(player) {
-	  console.warn("playerDidWin should be implemented by the subclass");
-	  return false;
-	};
-
-	/** 
-	 * Execute the proposed move made by the player
-	 * @param {Player} player - the current player
-	 * @abstract
-	 * @returns {void}
-	*/
-	Game.prototype.executeMove = function(player) {
-	  throw new Error('executeMove must be implemented by the subclass!');
-	};
-
-	/**
-	 * Event for when a token is clicked on
-	 * @param {Token} token - the token that was clicked
-	 * @returns {void}
-	*/
-	Game.prototype.tokenClicked = function(token) { 
-	  if (this.moveType == c.moveTypeManual &&
-	      this.turnMap.getCurrentState() == "waitingForMove") { 
-	    this.setProposedMoveToken(token);
-	  }
-	};
-
-	/**
-	 * Event for when a tile is clicked on
-	 * @param {Tile} tile - the tile that was clicked
-	 * @returns {void}
-	*/
-	Game.prototype.tileClicked = function(tile) { 
-	  /* make sure we're in the right state, 
-	   a token has been pressed, 
-	   and we're not a tile with a token on it (if we have > 0
-	   children, then this click was meant for a token... */
-	  if (this.moveType == c.moveTypeManual && 
-	      this.turnMap.getCurrentState() == "waitingForMove" && 
-	      this.proposedMove.token && 
-	      this.proposedMove.token.tile != tile) { 
-
-	    this.setProposedMoveDestination(tile);
-	    this.turnMap.updateState("makeMove");
-
-	  } else if (this.moveType == c.moveTypePlaceToken &&
-	      this.turnMap.getCurrentState() == "waitingForMove") {
-
-	    this.setProposedMoveDestination(tile);
-	    this.turnMap.updateState("makeMove");
-	  }
-	};
-
-
-	module.exports = Game;
-
-/***/ },
-/* 22 */
+/* 24 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var inherits = __webpack_require__(6).inherits;
-	var Board = __webpack_require__(14);
+	var Board = __webpack_require__(11);
 
 	/**
 	 * Grid Board (i.e. Checkers)
@@ -14613,7 +14806,7 @@
 
 
 /***/ },
-/* 23 */
+/* 25 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var Component = __webpack_require__(5);
@@ -14624,14 +14817,14 @@
 	 * @constructor
 	 * @extends {Component}
 	 * @param {string} name - The player's name.
-	 * @param {int} number - The player's number.
+	 * @param {hex} color - A hex color for the player's tokens.
 	*/
-	function Player(name, number) {
+	function Player(name, color) {
 	  Component.call(this);
 	  this.name = name;
 	  this.tokens = [];
 	  this.position = 0;
-	  this.color = number;
+	  this.color = color;
 	};
 
 	inherits(Player, Component);
@@ -14658,7 +14851,502 @@
 
 
 /***/ },
-/* 24 */
+/* 26 */
+/***/ function(module, exports, __webpack_require__) {
+
+	var c = __webpack_require__(4);
+	var Player = __webpack_require__(25);
+	var Component = __webpack_require__(5);
+	var inherits = __webpack_require__(6).inherits;
+
+	/**
+	 * The StartView class
+	 * @constructor
+	 * @param {Game} game - the game state
+	 * @extends {Component}
+	*/
+	function StartView(game) {
+	  Component.call(this);
+	  this.game = game;
+	};
+	inherits(StartView, Component);
+
+	/**
+	 * draws the game view
+	 * @returns {void}
+	*/
+	StartView.prototype.drawView = function() {
+	  this.setupPage(this.game.possibleNumPlayers[0]);
+	};
+
+	/**
+	 * sets up the pageto take in the provided HTML text string 
+	 * also sets up the onclick for the button 
+	 * and the onchnage for the drop down selector
+	 * @returns {void}
+	*/
+	StartView.prototype.setupPage = function(beginningNumPlayers) {
+	  document.getElementById('div1').innerHTML = this.getHTMLText(beginningNumPlayers);
+	  var context = this;
+	  document.getElementById('btnEnter').onclick=function(){context.handleButtonClick()};
+	  document.getElementById('numPlayersInput').onchange=function(){context.handleNumChanged()};
+
+	};
+
+	/**
+	 * provides the htmlText to be place in a div on the page
+	 * @returns {string} htmlText
+	*/
+	StartView.prototype.getHTMLText= function(beginningNumPlayers) {
+
+	  var htmlText = ' <form id="form1">\
+	    Enter the number of players:  ' + 
+	    this.createDropDown("numPlayersInput", this.game.possibleNumPlayers, beginningNumPlayers) + 
+	    '<br>';
+
+	  for(var i = 0; i < this.getNumPlayers(beginningNumPlayers); i++){
+	    htmlText = htmlText + 'Player ' + (i+1) + ' Name: \
+	    <input type="text" id="player' + (i+1) + 'Name"><br>';
+	  }
+	  //adding enter button
+	  htmlText = htmlText + '<input type="button" id="btnEnter" value="Enter">\
+	    </form> ';
+	  return htmlText;
+	};
+
+	/**
+	 * puts together the html text for a dropdown list of the possible number
+	 * of players into a string
+	 * @returns {string} dropDownHtml
+	*/
+	StartView.prototype.createDropDown = function(id, array, selected) {
+	  var dropDownHTML = '<select id="' + id + '">';
+
+	  for(var i = 0; i < array.length; i++){
+	    dropDownHTML = dropDownHTML + '<option value="' + array[i] +  '"';
+	    if(array[i] == selected){
+	      dropDownHTML = dropDownHTML + ' selected';
+	    } 
+	    dropDownHTML = dropDownHTML +  '>' +array[i] + '</option>';
+	  }
+	  dropDownHTML = dropDownHTML + '</select>';
+
+	  return dropDownHTML;
+	};
+
+	/**
+	 * finds out the number of players that should currently be displayed 
+	 * as selected in the dropdown list
+	 * @returns {int} numPlayers
+	*/
+	StartView.prototype.getNumPlayers = function(beginningNumPlayers) {
+	  if(!document.getElementById('numPlayersInput')){
+	    return beginningNumPlayers;
+	  }
+	  return document.getElementById('numPlayersInput').value;
+	};
+
+
+	/**
+	 * Handles the dropdown list value changed by re-setting up the page
+	 * @returns {void}
+	*/
+	StartView.prototype.handleNumChanged = function() {
+	  this.setupPage(document.getElementById('numPlayersInput').value);
+	};
+
+	/**
+	 * Handles the onclick for the button by creating players and transition state
+	 * @returns {void}
+	*/
+	StartView.prototype.handleButtonClick = function() {
+	  var players = [];
+	  var numPlayers;
+	  if(!document.getElementById('numPlayersInput')){
+	    numPlayers = this.game.possibleNumPlayers[0];
+	  } else {
+	    numPlayers = document.getElementById('numPlayersInput').value;
+	  }
+	  for(var i = 0; i < numPlayers; i++){
+	    var playerName;
+	    if(!document.getElementById('player' + (i+1) + 'Name') || document.getElementById('player' + (i+1) + 'Name').value == ""){
+	      playerName = "Player " + (i+1);
+	    } else {
+	      playerName = document.getElementById('player' + (i+1) + 'Name').value;
+	    }
+	    players[i] = new Player(playerName, this.game.playerColors[i]);
+	  }
+
+	  this.game.setPlayers(players);
+	  this.game.updateState("play");
+	};
+
+	/**
+	 * removes the game over view
+	 * @returns {void}
+	*/
+	StartView.prototype.removeView = function() {
+	  document.getElementById('div1').innerHTML = '';
+	};
+
+	StartView.prototype.drawMessage = function() {
+	};
+
+
+	module.exports = StartView;
+
+/***/ },
+/* 27 */
+/***/ function(module, exports, __webpack_require__) {
+
+	// style-loader: Adds some css to the DOM by adding a <style> tag
+
+	// load the styles
+	var content = __webpack_require__(28);
+	if(typeof content === 'string') content = [[module.id, content, '']];
+	// add the styles to the DOM
+	var update = __webpack_require__(30)(content, {});
+	if(content.locals) module.exports = content.locals;
+	// Hot Module Replacement
+	if(false) {
+		// When the styles change, update the <style> tags
+		if(!content.locals) {
+			module.hot.accept("!!./../../../css-loader/index.js!./style.css", function() {
+				var newContent = require("!!./../../../css-loader/index.js!./style.css");
+				if(typeof newContent === 'string') newContent = [[module.id, newContent, '']];
+				update(newContent);
+			});
+		}
+		// When the module is disposed, remove the <style> tags
+		module.hot.dispose(function() { update(); });
+	}
+
+/***/ },
+/* 28 */
+/***/ function(module, exports, __webpack_require__) {
+
+	exports = module.exports = __webpack_require__(29)();
+	// imports
+
+
+	// module
+	exports.push([module.id, "body {\n    background-color: #FFCC00;\n}\n\nh1 {\n    color: black;\n    margin-left: 200px;\n    font-family: Futura, \"Trebuchet MS\", Arial, sans-serif;\n    font-size: 20vw;\n    text-align: center;\n}\n\nform {\n    text-align: center;\n    font-size: 5vw;\n    font-family: Futura, \"Trebuchet MS\", Arial, sans-serif;\n}\n\nselect {\n\t   background: #FFE064;\n\t   width: 5%;\n\t   padding: 20px;\n\t   font-size: 4vw;\n\t   line-height: 1;\n\t   border: 0;\n\t   border-radius: 0;\n\t   height: 15%;\n\t   text-align: center;\n}\n\ninput {\n\t   background: #FFE064;\n\t   width: 15%;\n\t   padding: 10px;\n\t   font-size: 3vw;\n\t   line-height: 1;\n\t   border: 0;\n\t   border-radius: 0;\n\t   height: 15%;\n\t   text-align: center;\n\t   border-radius: 20px;\n}\n\ncanvas {\n\t    padding-left: 0;\n\t    padding-right: 0;\n\t    margin-left: auto;\n\t    margin-right: auto;\n\t    display: block;\n}", ""]);
+
+	// exports
+
+
+/***/ },
+/* 29 */
+/***/ function(module, exports) {
+
+	/*
+		MIT License http://www.opensource.org/licenses/mit-license.php
+		Author Tobias Koppers @sokra
+	*/
+	// css base code, injected by the css-loader
+	module.exports = function() {
+		var list = [];
+
+		// return the list of modules as css string
+		list.toString = function toString() {
+			var result = [];
+			for(var i = 0; i < this.length; i++) {
+				var item = this[i];
+				if(item[2]) {
+					result.push("@media " + item[2] + "{" + item[1] + "}");
+				} else {
+					result.push(item[1]);
+				}
+			}
+			return result.join("");
+		};
+
+		// import a list of modules into the list
+		list.i = function(modules, mediaQuery) {
+			if(typeof modules === "string")
+				modules = [[null, modules, ""]];
+			var alreadyImportedModules = {};
+			for(var i = 0; i < this.length; i++) {
+				var id = this[i][0];
+				if(typeof id === "number")
+					alreadyImportedModules[id] = true;
+			}
+			for(i = 0; i < modules.length; i++) {
+				var item = modules[i];
+				// skip already imported module
+				// this implementation is not 100% perfect for weird media query combinations
+				//  when a module is imported multiple times with different media queries.
+				//  I hope this will never occur (Hey this way we have smaller bundles)
+				if(typeof item[0] !== "number" || !alreadyImportedModules[item[0]]) {
+					if(mediaQuery && !item[2]) {
+						item[2] = mediaQuery;
+					} else if(mediaQuery) {
+						item[2] = "(" + item[2] + ") and (" + mediaQuery + ")";
+					}
+					list.push(item);
+				}
+			}
+		};
+		return list;
+	};
+
+
+/***/ },
+/* 30 */
+/***/ function(module, exports, __webpack_require__) {
+
+	/*
+		MIT License http://www.opensource.org/licenses/mit-license.php
+		Author Tobias Koppers @sokra
+	*/
+	var stylesInDom = {},
+		memoize = function(fn) {
+			var memo;
+			return function () {
+				if (typeof memo === "undefined") memo = fn.apply(this, arguments);
+				return memo;
+			};
+		},
+		isOldIE = memoize(function() {
+			return /msie [6-9]\b/.test(window.navigator.userAgent.toLowerCase());
+		}),
+		getHeadElement = memoize(function () {
+			return document.head || document.getElementsByTagName("head")[0];
+		}),
+		singletonElement = null,
+		singletonCounter = 0,
+		styleElementsInsertedAtTop = [];
+
+	module.exports = function(list, options) {
+		if(false) {
+			if(typeof document !== "object") throw new Error("The style-loader cannot be used in a non-browser environment");
+		}
+
+		options = options || {};
+		// Force single-tag solution on IE6-9, which has a hard limit on the # of <style>
+		// tags it will allow on a page
+		if (typeof options.singleton === "undefined") options.singleton = isOldIE();
+
+		// By default, add <style> tags to the bottom of <head>.
+		if (typeof options.insertAt === "undefined") options.insertAt = "bottom";
+
+		var styles = listToStyles(list);
+		addStylesToDom(styles, options);
+
+		return function update(newList) {
+			var mayRemove = [];
+			for(var i = 0; i < styles.length; i++) {
+				var item = styles[i];
+				var domStyle = stylesInDom[item.id];
+				domStyle.refs--;
+				mayRemove.push(domStyle);
+			}
+			if(newList) {
+				var newStyles = listToStyles(newList);
+				addStylesToDom(newStyles, options);
+			}
+			for(var i = 0; i < mayRemove.length; i++) {
+				var domStyle = mayRemove[i];
+				if(domStyle.refs === 0) {
+					for(var j = 0; j < domStyle.parts.length; j++)
+						domStyle.parts[j]();
+					delete stylesInDom[domStyle.id];
+				}
+			}
+		};
+	}
+
+	function addStylesToDom(styles, options) {
+		for(var i = 0; i < styles.length; i++) {
+			var item = styles[i];
+			var domStyle = stylesInDom[item.id];
+			if(domStyle) {
+				domStyle.refs++;
+				for(var j = 0; j < domStyle.parts.length; j++) {
+					domStyle.parts[j](item.parts[j]);
+				}
+				for(; j < item.parts.length; j++) {
+					domStyle.parts.push(addStyle(item.parts[j], options));
+				}
+			} else {
+				var parts = [];
+				for(var j = 0; j < item.parts.length; j++) {
+					parts.push(addStyle(item.parts[j], options));
+				}
+				stylesInDom[item.id] = {id: item.id, refs: 1, parts: parts};
+			}
+		}
+	}
+
+	function listToStyles(list) {
+		var styles = [];
+		var newStyles = {};
+		for(var i = 0; i < list.length; i++) {
+			var item = list[i];
+			var id = item[0];
+			var css = item[1];
+			var media = item[2];
+			var sourceMap = item[3];
+			var part = {css: css, media: media, sourceMap: sourceMap};
+			if(!newStyles[id])
+				styles.push(newStyles[id] = {id: id, parts: [part]});
+			else
+				newStyles[id].parts.push(part);
+		}
+		return styles;
+	}
+
+	function insertStyleElement(options, styleElement) {
+		var head = getHeadElement();
+		var lastStyleElementInsertedAtTop = styleElementsInsertedAtTop[styleElementsInsertedAtTop.length - 1];
+		if (options.insertAt === "top") {
+			if(!lastStyleElementInsertedAtTop) {
+				head.insertBefore(styleElement, head.firstChild);
+			} else if(lastStyleElementInsertedAtTop.nextSibling) {
+				head.insertBefore(styleElement, lastStyleElementInsertedAtTop.nextSibling);
+			} else {
+				head.appendChild(styleElement);
+			}
+			styleElementsInsertedAtTop.push(styleElement);
+		} else if (options.insertAt === "bottom") {
+			head.appendChild(styleElement);
+		} else {
+			throw new Error("Invalid value for parameter 'insertAt'. Must be 'top' or 'bottom'.");
+		}
+	}
+
+	function removeStyleElement(styleElement) {
+		styleElement.parentNode.removeChild(styleElement);
+		var idx = styleElementsInsertedAtTop.indexOf(styleElement);
+		if(idx >= 0) {
+			styleElementsInsertedAtTop.splice(idx, 1);
+		}
+	}
+
+	function createStyleElement(options) {
+		var styleElement = document.createElement("style");
+		styleElement.type = "text/css";
+		insertStyleElement(options, styleElement);
+		return styleElement;
+	}
+
+	function createLinkElement(options) {
+		var linkElement = document.createElement("link");
+		linkElement.rel = "stylesheet";
+		insertStyleElement(options, linkElement);
+		return linkElement;
+	}
+
+	function addStyle(obj, options) {
+		var styleElement, update, remove;
+
+		if (options.singleton) {
+			var styleIndex = singletonCounter++;
+			styleElement = singletonElement || (singletonElement = createStyleElement(options));
+			update = applyToSingletonTag.bind(null, styleElement, styleIndex, false);
+			remove = applyToSingletonTag.bind(null, styleElement, styleIndex, true);
+		} else if(obj.sourceMap &&
+			typeof URL === "function" &&
+			typeof URL.createObjectURL === "function" &&
+			typeof URL.revokeObjectURL === "function" &&
+			typeof Blob === "function" &&
+			typeof btoa === "function") {
+			styleElement = createLinkElement(options);
+			update = updateLink.bind(null, styleElement);
+			remove = function() {
+				removeStyleElement(styleElement);
+				if(styleElement.href)
+					URL.revokeObjectURL(styleElement.href);
+			};
+		} else {
+			styleElement = createStyleElement(options);
+			update = applyToTag.bind(null, styleElement);
+			remove = function() {
+				removeStyleElement(styleElement);
+			};
+		}
+
+		update(obj);
+
+		return function updateStyle(newObj) {
+			if(newObj) {
+				if(newObj.css === obj.css && newObj.media === obj.media && newObj.sourceMap === obj.sourceMap)
+					return;
+				update(obj = newObj);
+			} else {
+				remove();
+			}
+		};
+	}
+
+	var replaceText = (function () {
+		var textStore = [];
+
+		return function (index, replacement) {
+			textStore[index] = replacement;
+			return textStore.filter(Boolean).join('\n');
+		};
+	})();
+
+	function applyToSingletonTag(styleElement, index, remove, obj) {
+		var css = remove ? "" : obj.css;
+
+		if (styleElement.styleSheet) {
+			styleElement.styleSheet.cssText = replaceText(index, css);
+		} else {
+			var cssNode = document.createTextNode(css);
+			var childNodes = styleElement.childNodes;
+			if (childNodes[index]) styleElement.removeChild(childNodes[index]);
+			if (childNodes.length) {
+				styleElement.insertBefore(cssNode, childNodes[index]);
+			} else {
+				styleElement.appendChild(cssNode);
+			}
+		}
+	}
+
+	function applyToTag(styleElement, obj) {
+		var css = obj.css;
+		var media = obj.media;
+		var sourceMap = obj.sourceMap;
+
+		if(media) {
+			styleElement.setAttribute("media", media)
+		}
+
+		if(styleElement.styleSheet) {
+			styleElement.styleSheet.cssText = css;
+		} else {
+			while(styleElement.firstChild) {
+				styleElement.removeChild(styleElement.firstChild);
+			}
+			styleElement.appendChild(document.createTextNode(css));
+		}
+	}
+
+	function updateLink(linkElement, obj) {
+		var css = obj.css;
+		var media = obj.media;
+		var sourceMap = obj.sourceMap;
+
+		if(sourceMap) {
+			// http://stackoverflow.com/a/26603875
+			css += "\n/*# sourceMappingURL=data:application/json;base64," + btoa(unescape(encodeURIComponent(JSON.stringify(sourceMap)))) + " */";
+		}
+
+		var blob = new Blob([css], { type: "text/css" });
+
+		var oldSrc = linkElement.href;
+
+		linkElement.href = URL.createObjectURL(blob);
+
+		if(oldSrc)
+			URL.revokeObjectURL(oldSrc);
+	}
+
+
+/***/ },
+/* 31 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var Component = __webpack_require__(5);
@@ -14724,7 +15412,7 @@
 
 
 /***/ },
-/* 25 */
+/* 32 */
 /***/ function(module, exports) {
 
 	/**
@@ -14763,10 +15451,10 @@
 	module.exports = Trade
 
 /***/ },
-/* 26 */
+/* 33 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var Tile = __webpack_require__(20);
+	var Tile = __webpack_require__(16);
 	var inherits = __webpack_require__(6).inherits;
 
 	/**
@@ -14794,13 +15482,14 @@
 
 
 /***/ },
-/* 27 */
+/* 34 */
 /***/ function(module, exports, __webpack_require__) {
 
-	var c = __webpack_require__(16);
-	var GridBoard = __webpack_require__(22);
-	var ArrayBoard = __webpack_require__(13);
-	var PIXI = __webpack_require__(28);
+	var c = __webpack_require__(4);
+	var GridBoard = __webpack_require__(24);
+	var ArrayBoard = __webpack_require__(10);
+	var PIXI = __webpack_require__(35);
+
 	var Component = __webpack_require__(5);
 	var inherits = __webpack_require__(6).inherits;
 
@@ -14808,47 +15497,78 @@
 	 * The View class
 	 * @constructor
 	 * @param {Game} game - the game state
-	 * @param {TurnMap} turnMap - the state machine
 	 * @extends {Component}
 	*/
-	function View(game, turnMap) {
+	function View(game) {
 	  Component.call(this);
 	  this.game = game;
-	  this.turnMap = turnMap;
-	  this.turnMap.updateState("start");
 	  this.tokenViews = [];
 	  this.tileViews = [];
 	  this.boardView = new PIXI.Graphics();
 	  this.stage = new PIXI.Container();
+	  this.viewHidden = false;
 	  this.renderer = PIXI.autoDetectRenderer(c.canvasWidth, c.canvasHeight, 
 	                                          { transparent: true });
 	  document.body.appendChild(this.renderer.view);
+	  this.allPlayersInfo = this.drawAllPlayersInfo();
 	  
-	  if (game.board instanceof GridBoard) { 
-	    for (var i = 0; i < this.game.board.height; i++) { 
-	      this.tileViews[i] = [];
-	    } 
-	  } 
 	};
-
 	inherits(View, Component);
+
+	/**
+	 * Shows the view if view hidden, otherwise draws the board
+	 * @returns {void}
+	*/
+	View.prototype.drawView = function() { 
+	  this.showView();
+	  if(!this.viewHidden){
+	    this.drawBoard();
+	  }
+	}
+
+	/**
+	 * Hides the view if hidden
+	 * @returns {void}
+	*/
+	View.prototype.hideView = function() { 
+	  this.stage.alpha = 0;
+	  this.viewHidden = true;
+	}
+
+	/**
+	 * Shows the board if hidden
+	 * @returns {void}
+	*/
+	View.prototype.showView = function() { 
+	  this.stage.alpha = 1;
+	}
+
+	/**
+	 * Removes the view
+	 * @returns {void}
+	*/
+	View.prototype.removeView = function() { 
+	  this.stage.alpha = 0;
+	}
+
 
 	/**
 	 * Draw the board for the given board type
 	 * @returns {void}
 	*/
 	View.prototype.drawBoard = function() { 
-	  if (this.game.board instanceof GridBoard) 
+	  if (this.game.board instanceof GridBoard) { 
 	    this.drawGridBoard();
+	  }
 	  else if (this.game.board instanceof ArrayBoard) {
 	    this.drawArrayBoard();
 	  }
 	  /* todo: 
 
 	   else if (this.game.board instanceof GraphBoard)
-	     this.drawGraphBoard();
+	   this.drawGraphBoard();
 	   else 
-	     do nothing and defer drawing to user? 
+	   do nothing and defer drawing to user? 
 
 	   */
 	};
@@ -14858,6 +15578,9 @@
 	 * @returns {void}
 	*/
 	View.prototype.drawGridBoard = function() {
+	  for (var i = 0; i < this.game.board.width; i++) { 
+	    this.tileViews[i] = [];
+	  }   
 	  
 	  this.boardView.x = c.boardStartX;
 	  this.boardView.y = c.boardStartY;
@@ -14945,7 +15668,7 @@
 	 * Override this method in your subclass to customize the board
 	 * @param {Tile} tile - the tile model object
 	 * @param {Dictionary} size - The width and height for the tile
-	 * @returns {PIXI.Graphics} tileView
+	 * @returns {PIXI.Graphics} PIXI.Graphics objects describing how the tile should look
 	*/
 	View.prototype.drawTile = function(tile, size) { 
 
@@ -14955,6 +15678,7 @@
 	  tileView.beginFill(tile.color, 1);
 	  tileView.drawRect(0, 0, size.width, size.height);
 	  return tileView;
+
 	};
 
 	/**
@@ -14963,15 +15687,15 @@
 	*/
 	View.prototype.drawTiles = function() {
 
-	  var tileWidth = c.boardWidth / this.game.board.tiles[0].length;
-	  var tileHeight = c.boardHeight / this.game.board.tiles.length;
+	  var tileWidth = c.boardWidth / this.game.board.tiles.length;
+	  var tileHeight = c.boardHeight / this.game.board.tiles[0].length;
 	  var y_pos = c.boardHeight;
 	  var x_pos = 0;
 	  
-	  for (var y = 0; y < this.game.board.tiles.length; y++) {
+	  for (var y = 0; y < this.game.board.tiles[0].length; y++) {
 	    x_pos = 0;
 	    y_pos -= tileHeight;
-	    for (var x = 0; x < this.game.board.tiles[0].length; x++) {
+	    for (var x = 0; x < this.game.board.tiles.length; x++) {
 
 	      var tile = this.game.board.getTile(x, y);
 	      var tileView = this.drawTile(tile, {width: tileWidth, height:tileHeight});
@@ -14982,15 +15706,15 @@
 	        tileView.interactive = true;
 	        var context = this;
 	        tileView.click = function(mouseData) {
+	          mouseData.stopPropagation();
 	          var selectedTile;
 	          for (var i = 0; i < context.tileViews.length; i++) {
-	            for (var j = 0; j < context.tileViews[0].length; j++) { 
+	            for (var j = 0; j < context.tileViews[0].length; j++) {
 	              if (context.tileViews[i][j] == this) { 
 	                selectedTile = context.game.board.getTile(i, j);
 	              }
 	            }
 	          }
-	          
 	          context.game.tileClicked(selectedTile);
 	        };
 	      } 
@@ -15003,13 +15727,12 @@
 	  }
 	};
 
-	// draws token, puts it on appropriate tile,
-	// adds it to tokenViews
 	/** 
-	 * Draw a tokens
+	 * Draw a token
 	 * Override this method in subclass to customize token drawing
 	 * @param {Token} token - token model data
 	 * @param {Dictionary} size - width and height of token
+	 * @returns {PIXI.Graphics} PIXI.Graphics objects describing how the tile should look
 	*/
 	View.prototype.drawToken = function(token, size) {
 
@@ -15058,7 +15781,8 @@
 	      if (this.game.moveType == c.moveTypeManual || this.game.moveType == c.moveTypePlaceToken) { 
 	        tokenView.interactive = true;
 	        var context = this;
-	        tokenView.click = function(mouseData) { 
+	        tokenView.click = function(mouseData) {
+	          mouseData.stopPropagation(); 
 	          var selectedToken;
 	          for (var i = 0; i < context.tokenViews.length; i++) {
 	            if (context.tokenViews[i].view == this) { 
@@ -15074,6 +15798,7 @@
 	    }
 	  }
 	};
+
 
 	/**
 	 * Update the token view if the token moved
@@ -15153,15 +15878,105 @@
 
 	View.prototype.animate = function() {
 	  this.updateTokens();
+	  this.updateAllPlayersInfo();
 	  requestAnimationFrame(this.animate.bind(this));
 	  this.renderer.render(this.stage);
 	};
 
+	View.prototype.drawAllPlayersInfo = function() {
+
+	  var playersInfo = this.getPlayersInfo();
+	  if (!playersInfo) return;
+
+	  var infoBlock = new PIXI.Graphics();
+	  infoBlock.x = c.boardWidth + c.leftBuffer * 2;
+	  infoBlock.y = c.upperBuffer;
+
+	  var blockSize = 150;
+	  var vertOffset = .2 * c.upperBuffer;
+	  
+	  var view = this;
+	  playersInfo.forEach(function(player) { 
+	    view.drawPlayerInfo(player, vertOffset, infoBlock);
+	    vertOffset += blockSize;
+	  });
+	  
+	  this.stage.addChild(infoBlock);
+	  return infoBlock;
+	};
+
+
+	View.prototype.drawPlayerInfo = function(player, vertOffset, infoBlock) {
+	  
+	  var string = "";
+	  if (player["name"]) string += player["name"] + "\n";
+	  for (var key in player) { 
+	    if (key == "name") continue; 
+	    string += key + ":  " + player[key] + "\n";
+	  } 
+	  
+	  var info = new PIXI.Text(string, 
+	                           {font: '20px Arial',
+	                            align : 'left',
+	                            wordWrap : true,
+	                            strokeThickness : .25,
+	                            wordWrapWidth : c.canvasWidth - c.boardWidth - (4 * c.leftBuffer)
+	                           });
+
+	  info.x = c.leftBuffer * 0.2;
+	  info.y = vertOffset;
+	  
+	  var box = new PIXI.Graphics();
+	  box.y = vertOffset - c.upperBuffer * .2;
+	  
+	  var outline = new PIXI.Graphics();
+	  outline.y = vertOffset - c.upperBuffer * .2;
+	  outline.lineStyle(1, 0, 1);
+	  outline.drawRect(0, 0, c.canvasWidth - c.boardWidth - (3 * c.leftBuffer), 140);
+	  
+	  box.lineStyle(1, 0, 1);
+	  box.beginFill(0x44C0DF, 1);
+	  box.drawRect(0, 0, c.canvasWidth - c.boardWidth - (3 * c.leftBuffer), 140);
+	  
+	  infoBlock.addChild(outline);
+	  infoBlock.addChild(box);
+	  infoBlock.addChild(info);
+	};
+
+
+	/**
+	* Can be overridden in view subclass to display player info panel 
+	* using the key "name" causes the field to display first without a label
+	*  return [    
+	*    { 
+	*      name: "kc", 
+	*      money: 234, 
+	*      skill: 10
+	*    },
+	*    { 
+	*      name: "john",
+	*      money: 98, 
+	*      skill: 1
+	*    }
+	*  ];
+	*
+	* @return {array} An array of dictionaries.
+	*/
+	View.prototype.getPlayersInfo = function() { 
+	  return null;
+	};
+
+
+	View.prototype.updateAllPlayersInfo = function() {
+	  this.stage.removeChild(this.allPlayersInfo);
+	  this.allPlayersInfo = this.drawAllPlayersInfo();
+	};
 
 	module.exports = View;
 
+
 /***/ },
-/* 28 */
+/* 35 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var require;var require;/* WEBPACK VAR INJECTION */(function(global, setImmediate) {(function(f){if(true){module.exports=f()}else if(typeof define==="function"&&define.amd){define([],f)}else{var g;if(typeof window!=="undefined"){g=window}else if(typeof global!=="undefined"){g=global}else if(typeof self!=="undefined"){g=self}else{g=this}g.PIXI = f()}})(function(){var define,module,exports;return (function e(t,n,r){function s(o,u){if(!n[o]){if(!t[o]){var a=typeof require=="function"&&require;if(!u&&a)return require(o,!0);if(i)return i(o,!0);var f=new Error("Cannot find module '"+o+"'");throw f.code="MODULE_NOT_FOUND",f}var l=n[o]={exports:{}};t[o][0].call(l.exports,function(e){var n=t[o][1][e];return s(n?n:e)},l,l.exports,e,t,n,r)}return n[o].exports}var i=typeof require=="function"&&require;for(var o=0;o<r.length;o++)s(r[o]);return s})({1:[function(require,module,exports){
@@ -42652,10 +43467,10 @@
 
 
 	//# sourceMappingURL=pixi.js.map
-	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }()), __webpack_require__(29).setImmediate))
+	/* WEBPACK VAR INJECTION */}.call(exports, (function() { return this; }()), __webpack_require__(36).setImmediate))
 
 /***/ },
-/* 29 */
+/* 36 */
 /***/ function(module, exports, __webpack_require__) {
 
 	/* WEBPACK VAR INJECTION */(function(setImmediate, clearImmediate) {var nextTick = __webpack_require__(7).nextTick;
@@ -42734,28 +43549,26 @@
 	exports.clearImmediate = typeof clearImmediate === "function" ? clearImmediate : function(id) {
 	  delete immediateIds[id];
 	};
-	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(29).setImmediate, __webpack_require__(29).clearImmediate))
+	/* WEBPACK VAR INJECTION */}.call(exports, __webpack_require__(36).setImmediate, __webpack_require__(36).clearImmediate))
 
 /***/ },
-/* 30 */
+/* 37 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var inherits = __webpack_require__(6).inherits;
 	var TableTop = __webpack_require__(1);
 
-	function CheckersGame(players, board, turnMap) {
-	  TableTop.Game.call(this, players, board, turnMap);
+	function CheckersGame(board) {
+	  TableTop.Game.call(this, board);
 	  this.currentPlayer = 0;
 	  this.moveType = TableTop.Constants.moveTypeManual;
 	  this.moveEvaluationType = TableTop.Constants.moveEvalationTypeGameEvaluator;
-	  board.tokens.forEach(function(token) { 
-	    var player = token.color == TableTop.Constants.redColor ? players[0] : players[1];
-	    token.owner = player;
-	    player.tokens.push(token);
-	  });
+	  this.possibleNumPlayers = [2];
+	  this.showNextPlayerScreen = false;
 	};
 
 	inherits(CheckersGame, TableTop.Game);
+
 
 	CheckersGame.prototype.executeMove = function() {  
 
@@ -42843,12 +43656,22 @@
 	   return true;
 	};
 
+	CheckersGame.prototype.setPlayers = function(players) {
+	  this.players = players;
+
+	  this.board.tokens.forEach(function(token) { 
+	  var player = token.color == TableTop.Constants.redColor ? players[0] : players[1];
+	    token.owner = player;
+	    player.tokens.push(token);
+	  });
+	};
+
 
 	module.exports = CheckersGame;
 
 
 /***/ },
-/* 31 */
+/* 38 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var inherits = __webpack_require__(6).inherits;
@@ -42910,7 +43733,7 @@
 
 
 /***/ },
-/* 32 */
+/* 39 */
 /***/ function(module, exports, __webpack_require__) {
 
 	var TableTop = __webpack_require__(1);
