@@ -26,6 +26,6 @@
     "style-loader": "^0.13.0"
   },
   "dependencies": {
-    "tabletop-boardgames": "1.0.17"
+    "tabletop-boardgames": "1.0.19"
   }
 }

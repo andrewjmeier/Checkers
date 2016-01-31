@@ -23,4 +23,10 @@ checkers.setTurnMap(turnMap);
 
 // this initiates the TurnMap ("Gameloop") and 
 // gets the ball rolling!
+
+checkers.subscribe(function(message) {
+    var div = document.getElementById("messages");
+    div.innerHTML = div.innerHTML.concat("<br>" + message);
+});
+
 checkers.updateState("start");

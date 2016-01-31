@@ -69,12 +69,6 @@
 
 	// this initiates the TurnMap ("Gameloop") and 
 	// gets the ball rolling!
-
-	checkers.subscribe(function(message) {
-	    var div = document.getElementById("messages");
-	    div.innerHTML = div.innerHTML.concat("<br>" + message);
-	});
-
 	checkers.updateState("start");
 
 /***/ },
@@ -15925,10 +15919,6 @@
 	  this.turnMap.updateState(message, this);
 	};
 
-	Game.prototype.stateChanged = function() {
-	  this.sendMessage(this.turnMap.getCurrentState());
-	};
-
 	/**
 	 * Set the move type for this game
 	 * @param {string} moveType - The move type. See ttConstants
@@ -16159,13 +16149,13 @@
 	      this.proposedMove.token.tile != tile) { 
 
 	    this.setProposedMoveDestination(tile);
-	    this.updateState("makeMove");
+	    this.turnMap.updateState("makeMove");
 
 	  } else if (this.moveType == c.moveTypePlaceToken &&
 	      this.turnMap.getCurrentState() == "waitingForMove") {
 
 	    this.setProposedMoveDestination(tile);
-	    this.updateState("makeMove");
+	    this.turnMap.updateState("makeMove");
 	  }
 	};
 
@@ -16292,7 +16282,6 @@
 	*/
 	ManualTurn.prototype.updateState = function(command) {
 	    this.turnMap.handle(command);
-	    this.game.stateChanged();
 	};
 
 	/**
@@ -58168,113 +58157,108 @@
 	  this.moveType = TableTop.Constants.moveTypeManual;
 	  this.moveEvaluationType = TableTop.Constants.moveEvalationTypeGameEvaluator;
 	  this.possibleNumPlayers = [2];
-	  this.showNextPlayerScreen = true;
+	  this.showNextPlayerScreen = false;
 	};
+
 	inherits(CheckersGame, TableTop.Game);
 
-	CheckersGame.prototype.setPlayers = function(players) {  
-	  this.players = players;
-
-	  this.board.tokens.forEach(function(token) { 
-	    var player = token.color == TableTop.Constants.redColor ? players[0] : players[1];
-	    player.tokens.push(token);
-	  });
-	};
 
 	CheckersGame.prototype.executeMove = function() {  
 
-	  // store proposedMove data for convenience
-	  var token = this.proposedMove.token;
-	  var destination = this.proposedMove.destination;
+	    // store proposedMove data for convenience
+	    var token = this.proposedMove.token;
+	    var destination = this.proposedMove.destination;
 
-	  // get positions of current token tile and the destination
-	  var tile = this.board.findTileForToken(token);
-	  var oldPosition = this.board.getTilePosition(tile);
-	  var newPosition = this.board.getTilePosition(destination);
+	    // get positions of current token tile and the destination
+	    var oldPosition = this.board.getTilePosition(token.tile);
+	    var newPosition = this.board.getTilePosition(destination);
 
-	  // check if we jumped a token, and remove it if so 
-	  var jumpedToken = this.getJumpedToken(token, oldPosition, newPosition);
+	    // check if we jumped a token, and remove it if so 
+	    var jumpedToken = this.getJumpedToken(token, oldPosition, newPosition);
 
-	  if (jumpedToken) {
-	    this.destroyToken(jumpedToken);
-	  }
-	  console.log(JSON.stringify(this.board));
-	  // move the token to the new tile and clear proposedMove
-	  this.board.moveTokenToTile(token, destination);
-	  this.proposedMove = {};
+	    if (jumpedToken)
+	        jumpedToken.destroy();
+
+	    // move the token to the new tile and clear proposedMove
+	    token.moveToTile(destination);
+	    this.proposedMove = {};
 	};
 
 	CheckersGame.prototype.getJumpedToken = function(token, oldPos, newPos) { 
 
-	  // are we moving up or down? 
-	  var yModifier = token.color == TableTop.Constants.redColor ? 1 : -1;
+	    // are we moving up or down? 
+	    var yModifier = token.color == TableTop.Constants.redColor ? 1 : -1;
 
-	  // grab the occupier of the tile that we jumped
-	  // if we didn't jump anything, this will return null - that's what we want!
-	  if (newPos.x > oldPos.x)
-	    return this.board.getTile(oldPos.x + 1, oldPos.y + yModifier).tokens[0];
-	  else  
-	    return this.board.getTile(oldPos.x - 1, oldPos.y + yModifier).tokens[0];
+	    // grab the occupier of the tile that we jumped
+	    // if we didn't jump anything, this will return null - that's what we want!
+	    if (newPos.x > oldPos.x)
+	        return this.board.getTile(oldPos.x + 1, oldPos.y + yModifier).occupier;
+	    else  
+	        return this.board.getTile(oldPos.x - 1, oldPos.y + yModifier).occupier;
 
 	};
 
 	CheckersGame.prototype.isValidMove = function(token, oldTile, newTile) { 
-	  var oldPos = this.board.getTilePosition(oldTile);
-	  var newPos = this.board.getTilePosition(newTile);
 
-	  var player = this.getCurrentPlayer();
+	    var oldPos = this.board.getTilePosition(oldTile);
+	    var newPos = this.board.getTilePosition(newTile);
 
+	    var player = this.getCurrentPlayer();
 
-	  console.log("checking valid move", player, oldPos, newPos);
-	  /* 
-	   If we don't own the piece or
-	   the destination is a red tile or 
-	   the destination is occupied 
-	   it's not a valid move! 
-	   */
+	    /* 
+	       If we don't own the piece or
+	       the destination is a red tile or 
+	       the destination is occupied 
+	       it's not a valid move! 
+	    */
+	    if (token.owner != player || 
+	       newTile.color == TableTop.Constants.redColor || 
+	       newTile.occupier) 
+	     return false;
 
-	   var p = this.getPlayerForToken(token);
-	   console.log("players", p != player, p, player);
-
-	  if (this.getPlayerForToken(token) != player || 
-	      newTile.color == TableTop.Constants.redColor || 
-	      newTile.tokens[0]) 
-	    return false;
-
-	  console.log("getting here");
-
-	  return this.validNormalMove(token, oldPos, newPos, 1) || 
-	    this.validJumpMove(token, oldPos, newPos);
+	    return this.validNormalMove(token, oldPos, newPos, 1) || 
+	      this.validJumpMove(token, oldPos, newPos);  
 	};
 
 	CheckersGame.prototype.validNormalMove = function(token, oldPos, newPos, moveLen) { 
 
-	  // are we moving up or down? 
-	  var yModifier = token.color == TableTop.Constants.redColor ? moveLen : -moveLen;
-	  return oldPos.y + yModifier == newPos.y && Math.abs(oldPos.x - newPos.x) == moveLen;
+	    // are we moving up or down? 
+	    var yModifier = token.color == TableTop.Constants.redColor ? moveLen : -moveLen;
+	    return oldPos.y + yModifier == newPos.y && Math.abs(oldPos.x - newPos.x) == moveLen;
 
 	};
 
 	CheckersGame.prototype.validJumpMove = function(token, oldPos, newPos) { 
 
-	  // make sure it's a valid normal move that's two spaces long
-	  if (!this.validNormalMove(token, oldPos, newPos, 2)) return false;
+	    // make sure it's a valid normal move that's two spaces long
+	    if (!this.validNormalMove(token, oldPos, newPos, 2)) return false;
 
-	  // make sure we jump an enemy token 
-	  var jumpedToken = this.getJumpedToken(token, oldPos, newPos);
-	  return jumpedToken && jumpedToken.color != token.color;
+	    // make sure we jump an enemy token 
+	    var jumpedToken = this.getJumpedToken(token, oldPos, newPos);
+	    return jumpedToken && jumpedToken.color != token.color;
 
 	};
 
 	CheckersGame.prototype.playerDidWin = function(player) { 
-	  var otherPlayer = (this.players[0] == player) ? this.players[1] : this.players[0];
-	  var tokens = otherPlayer.tokens;
-	  for (var tokenIdx in tokens) { 
-	    if (tokens[tokenIdx]) return false;
-	  } 
-	  
-	  return true;
+	   var otherPlayer = (this.players[0] == player) ? this.players[1] : this.players[0];
+	   var tokens = otherPlayer.tokens;
+	   for (var tokenIdx in tokens) { 
+	       if (tokens[tokenIdx]) return false;
+	   } 
+
+	   return true;
 	};
+
+	CheckersGame.prototype.setPlayers = function(players) {
+	  this.players = players;
+
+	  this.board.tokens.forEach(function(token) { 
+	  var player = token.color == TableTop.Constants.redColor ? players[0] : players[1];
+	    token.owner = player;
+	    player.tokens.push(token);
+	  });
+	};
+
 
 	module.exports = CheckersGame;
 
@@ -58286,7 +58270,6 @@
 	var inherits = __webpack_require__(6).inherits;
 	var TableTop = __webpack_require__(1);
 
-
 	function CheckerBoard() { 
 	  TableTop.GridBoard.call(this, 8, 8);
 	  this.buildTiles();
@@ -58295,46 +58278,47 @@
 
 	inherits(CheckerBoard, TableTop.GridBoard);
 
+
 	CheckerBoard.prototype.buildTiles = function() { 
 	  var tileColor = TableTop.Constants.redColor;
 	  var tile;
 	  for (var y = 0; y < this.height; y++) {
 	    tileColor = (tileColor == TableTop.Constants.redColor) ? TableTop.Constants.blackColor : TableTop.Constants.redColor;
 	    for (var x = 0; x < this.width; x++) {
-	      tile = new TableTop.Tile({color: tileColor});
-	      this.tiles[x][y] = tile;
-	      tileColor = (tileColor == TableTop.Constants.redColor) ? TableTop.Constants.blackColor : TableTop.Constants.redColor;
+	    tile = new TableTop.Tile({color: tileColor});
+	    this.tiles[x][y] = tile;
+	    tileColor = (tileColor == TableTop.Constants.redColor) ? TableTop.Constants.blackColor : TableTop.Constants.redColor;
 	    }
 	  } 
 	};
 
 	CheckerBoard.prototype.buildTokens = function() { 
 
-	  // define coordinates for red and white tokens
-	  var redX = [0, 2, 4, 6, 1, 3, 5, 7, 0, 2, 4, 6];
-	  var redY = [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2];
-	  var whiteX = [1, 3, 5, 7, 0, 2, 4, 6, 1, 3, 5, 7];
-	  var whiteY = [5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7];
+	    // define coordinates for red and white tokens
+	    var redX = [0, 2, 4, 6, 1, 3, 5, 7, 0, 2, 4, 6];
+	    var redY = [0, 0, 0, 0, 1, 1, 1, 1, 2, 2, 2, 2];
+	    var whiteX = [1, 3, 5, 7, 0, 2, 4, 6, 1, 3, 5, 7];
+	    var whiteY = [5, 5, 5, 5, 6, 6, 6, 6, 7, 7, 7, 7];
 
-	  // build the tokens
-	  var tile;
-	  for (var i = 0; i < redX.length; i++) { 
+	    // build the tokens
+	    var tile;
+	    for (var i = 0; i < redX.length; i++) { 
 
-	    tile = this.getTile(redX[i], redY[i]);
-	    this.buildTokenForTile(tile, TableTop.Constants.redColor);
+	        tile = this.getTile(redX[i], redY[i]);
+	        this.buildTokenForTile(tile, TableTop.Constants.redColor);
 
-	    tile = this.getTile(whiteX[i], whiteY[i]);
-	    this.buildTokenForTile(tile, TableTop.Constants.whiteColor);
-	  }
+	        tile = this.getTile(whiteX[i], whiteY[i]);
+	        this.buildTokenForTile(tile, TableTop.Constants.whiteColor);
+	    }
 	};
 
 	// creates the token for given tile and color, 
 	// adds it to the tile, 
 	// and appends it to our list of tokens
 	CheckerBoard.prototype.buildTokenForTile = function(tile, color) { 
-	  var token = new TableTop.Token(color);
-	  tile.addToken(token);
-	  this.tokens.push(token);
+	    var token = new TableTop.Token(null, tile, color);
+	    tile.addOccupier(token);
+	    this.tokens.push(token);
 	};
 
 
