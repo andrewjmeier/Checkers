@@ -15908,6 +15908,10 @@
 
 	inherits(Game, Component);
 
+	Game.prototype.stateChanged = function() {
+	  this.sendMessage(this.turnMap.getCurrentState());
+	};
+
 	/**
 	 * Method to set turnMap of the game once it is created
 	 * This is required!
@@ -15923,10 +15927,6 @@
 	*/
 	Game.prototype.updateState = function(message) {
 	  this.turnMap.updateState(message, this);
-	};
-
-	Game.prototype.stateChanged = function() {
-	  this.sendMessage(this.turnMap.getCurrentState());
 	};
 
 	/**
@@ -16159,13 +16159,13 @@
 	      this.proposedMove.token.tile != tile) { 
 
 	    this.setProposedMoveDestination(tile);
-	    this.updateState("makeMove");
+	    this.turnMap.updateState("makeMove");
 
 	  } else if (this.moveType == c.moveTypePlaceToken &&
 	      this.turnMap.getCurrentState() == "waitingForMove") {
 
 	    this.setProposedMoveDestination(tile);
-	    this.updateState("makeMove");
+	    this.turnMap.updateState("makeMove");
 	  }
 	};
 
